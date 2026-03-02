@@ -1,0 +1,295 @@
+---
+title: Management Endpoints
+description: Renew expiration dates and delete shared videos
+---
+
+## POST /api/renew/:shareCode
+
+Extend the expiration date of a shared video by 30 days from the current time.
+
+### Path Parameters
+
+<ParamField path="shareCode" type="string" required>
+  Share code to renew
+</ParamField>
+
+### Response
+
+<ResponseField name="expiresAt" type="string">
+  New ISO 8601 expiration timestamp (30 days from now)
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST https://your-worker.workers.dev/api/renew/xk3m9q7r2w \
+  -H "Authorization: Bearer YOUR_API_SECRET"
+```
+
+```json
+{
+  "expiresAt": "2026-04-01T12:00:00.000Z"
+}
+```
+
+### Implementation
+
+From `index.js:269-279`:
+
+```javascript
+async function handleRenew(env, shareCode) {
+  const newExpiry = new Date(Date.now() + EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+  const result = await env.DB.prepare('UPDATE videos SET expires_at = ? WHERE share_code = ?')
+    .bind(newExpiry, shareCode)
+    .run();
+
+  if (result.meta.changes === 0) return errorResponse('Video not found', 404);
+
+  return jsonResponse({ expiresAt: newExpiry });
+}
+```
+
+### Expiration Logic
+
+- **Default expiration**: 30 days from creation
+- **Renew**: Adds 30 days from the **current time** (not from previous expiration)
+- **Constant**: `EXPIRY_DAYS = 30` (`index.js:3`)
+
+### Swift Client Example
+
+From `ShareService.swift:167-179`:
+
+```swift
+func renew(shareCode: String) async throws -> Date {
+    guard ShareConfig.isConfigured else { throw ShareError.notConfigured }
+
+    var request = URLRequest(url: apiURL("/api/renew/\(shareCode)"))
+    request.httpMethod = "POST"
+    applyAuth(&request)
+
+    let (data, response) = try await URLSession.shared.data(for: request)
+    try validateResponse(response, data: data)
+
+    let renewResponse = try JSONDecoder().decode(RenewResponse.self, from: data)
+    return parseDate(renewResponse.expiresAt)
+}
+```
+
+---
+
+## DELETE /api/delete/:shareCode
+
+Permanently delete a shared video and all associated data:
+
+- Video file from R2 (`videos/:shareCode.mp4`)
+- Thumbnail from R2 (`thumbnails/:shareCode.jpg`)
+- Transcript segments from D1 (`transcript_segments`)
+- Video metadata from D1 (`videos`)
+
+### Path Parameters
+
+<ParamField path="shareCode" type="string" required>
+  Share code to delete
+</ParamField>
+
+### Response
+
+```json
+{
+  "ok": true
+}
+```
+
+### Example
+
+```bash
+curl -X DELETE https://your-worker.workers.dev/api/delete/xk3m9q7r2w \
+  -H "Authorization: Bearer YOUR_API_SECRET"
+```
+
+### Implementation
+
+From `index.js:281-291`:
+
+```javascript
+async function handleDelete(env, shareCode) {
+  const video = await env.DB.prepare('SELECT id FROM videos WHERE share_code = ?').bind(shareCode).first();
+  if (!video) return errorResponse('Video not found', 404);
+
+  await env.VIDEOS_BUCKET.delete(`videos/${shareCode}.mp4`);
+  await env.VIDEOS_BUCKET.delete(`thumbnails/${shareCode}.jpg`);
+  await env.DB.prepare('DELETE FROM transcript_segments WHERE video_id = ?').bind(video.id).run();
+  await env.DB.prepare('DELETE FROM videos WHERE id = ?').bind(video.id).run();
+
+  return jsonResponse({ ok: true });
+}
+```
+
+### Deletion Order
+
+1. **Verify video exists** (fail with 404 if not)
+2. **Delete R2 objects** (video and thumbnail)
+3. **Delete transcript segments** (foreign key constraint)
+4. **Delete video record** (final cleanup)
+
+<Warning>
+  Deletion is **permanent** and cannot be undone. The share URL will immediately return 404.
+</Warning>
+
+### Swift Client Example
+
+From `ShareService.swift:181-194`:
+
+```swift
+func deleteShare(shareCode: String) async throws {
+    guard ShareConfig.isConfigured else { throw ShareError.notConfigured }
+
+    var request = URLRequest(url: apiURL("/api/delete/\(shareCode)"))
+    request.httpMethod = "DELETE"
+    applyAuth(&request)
+
+    let (data, response) = try await URLSession.shared.data(for: request)
+    // Treat 404 as success — video is already gone
+    if let http = response as? HTTPURLResponse, http.statusCode == 404 {
+        return
+    }
+    try validateResponse(response, data: data)
+}
+```
+
+---
+
+## Scheduled Cleanup
+
+The worker includes a **cron job** that automatically deletes expired videos:
+
+From `index.js:144-146`:
+
+```javascript
+async scheduled(event, env) {
+  await cleanupExpired(env);
+}
+```
+
+### Cleanup Implementation
+
+From `index.js:392-403`:
+
+```javascript
+async function cleanupExpired(env) {
+  const expired = await env.DB.prepare(
+    "SELECT id, share_code FROM videos WHERE datetime(expires_at) < datetime('now')"
+  ).all();
+
+  for (const video of expired.results || []) {
+    await env.VIDEOS_BUCKET.delete(`videos/${video.share_code}.mp4`);
+    await env.VIDEOS_BUCKET.delete(`thumbnails/${video.share_code}.jpg`);
+    await env.DB.prepare('DELETE FROM transcript_segments WHERE video_id = ?').bind(video.id).run();
+    await env.DB.prepare('DELETE FROM videos WHERE id = ?').bind(video.id).run();
+  }
+}
+```
+
+### Configuring Cron
+
+In `wrangler.toml`:
+
+```toml
+[triggers]
+crons = ["0 2 * * *"]  # Run daily at 2:00 AM UTC
+```
+
+This ensures expired videos are cleaned up automatically, freeing storage space.
+
+---
+
+## Error Responses
+
+### Video Not Found (404)
+
+Both endpoints return this if the share code doesn't exist:
+
+```json
+{
+  "error": "Video not found"
+}
+```
+
+**Note**: The DELETE endpoint treats 404 as success in the Swift client (since the goal is achieved—video is gone).
+
+### Unauthorized (401)
+
+```json
+{
+  "error": "Unauthorized"
+}
+```
+
+Missing or invalid Bearer token.
+
+---
+
+## Use Cases
+
+### Renew Before Expiration
+
+If a user wants to keep a video longer:
+
+```bash
+# Check current expiration
+curl -X GET https://your-worker.workers.dev/s/xk3m9q7r2w
+
+# Renew for another 30 days
+curl -X POST https://your-worker.workers.dev/api/renew/xk3m9q7r2w \
+  -H "Authorization: Bearer YOUR_API_SECRET"
+```
+
+### Delete After Recording Session
+
+Delete immediately after a demo or temporary share:
+
+```bash
+curl -X DELETE https://your-worker.workers.dev/api/delete/xk3m9q7r2w \
+  -H "Authorization: Bearer YOUR_API_SECRET"
+```
+
+### Bulk Cleanup
+
+Delete multiple videos:
+
+```bash
+for code in xk3m9q7r2w abc123def4 xyz789ghi0; do
+  curl -X DELETE https://your-worker.workers.dev/api/delete/$code \
+    -H "Authorization: Bearer YOUR_API_SECRET"
+done
+```
+
+---
+
+## Best Practices
+
+<Tip>
+  **Renew proactively**: If you know a video will be needed beyond 30 days, renew it before expiration to avoid losing access.
+</Tip>
+
+### Recommendations
+
+- **Monitor expiration dates**: Store `expiresAt` in your client database
+- **Implement auto-renewal**: For important videos, set up automatic renewal
+- **Soft delete option**: Consider adding a `deleted_at` field for soft deletes instead of hard deletes
+- **Audit logs**: Track who deleted what and when for compliance
+- **Confirm before delete**: Prompt users before permanent deletion
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Schema" icon="table" href="/api/schema">
+    View the full D1 database structure
+  </Card>
+  <Card title="Upload Endpoints" icon="upload" href="/api/upload">
+    Learn the video upload flow
+  </Card>
+</CardGroup>

@@ -1,0 +1,462 @@
+---
+title: Upload Endpoints
+description: Upload videos using simple or multipart uploads
+---
+
+## Upload Flow
+
+Voom supports two upload methods:
+
+1. **Simple upload** - Single PUT request (for small files)
+2. **Multipart upload** - Chunked upload (recommended for files >10 MB)
+
+## POST /api/upload
+
+Create an upload slot and receive a share code.
+
+### Request
+
+<ParamField path="title" type="string" required>
+  Video title (required)
+</ParamField>
+
+<ParamField path="duration" type="number">
+  Duration in seconds (e.g., `120.5`)
+</ParamField>
+
+<ParamField path="width" type="number">
+  Video width in pixels (e.g., `1920`)
+</ParamField>
+
+<ParamField path="height" type="number">
+  Video height in pixels (e.g., `1080`)
+</ParamField>
+
+<ParamField path="hasWebcam" type="boolean">
+  Whether video includes webcam overlay
+</ParamField>
+
+<ParamField path="fileSize" type="number">
+  File size in bytes
+</ParamField>
+
+### Response
+
+<ResponseField name="shareCode" type="string">
+  10-character share code (e.g., `"xk3m9q7r2w"`)
+</ResponseField>
+
+<ResponseField name="uploadURL" type="string">
+  URL for simple upload: `/api/upload-data/:shareCode`
+</ResponseField>
+
+<ResponseField name="shareURL" type="string">
+  Public share page URL: `/s/:shareCode`
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string">
+  ISO 8601 expiration timestamp (30 days from now)
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST https://your-worker.workers.dev/api/upload \
+  -H "Authorization: Bearer YOUR_API_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Product Demo",
+    "duration": 185.2,
+    "width": 2560,
+    "height": 1440,
+    "hasWebcam": true,
+    "fileSize": 104857600
+  }'
+```
+
+```json
+{
+  "shareCode": "xk3m9q7r2w",
+  "uploadURL": "https://your-worker.workers.dev/api/upload-data/xk3m9q7r2w",
+  "shareURL": "https://your-worker.workers.dev/s/xk3m9q7r2w",
+  "expiresAt": "2026-04-01T12:00:00.000Z"
+}
+```
+
+### Implementation
+
+From `index.js:151-175`:
+
+```javascript
+async function handleUpload(request, env) {
+  const body = await request.json();
+  const { title, duration, width, height, hasWebcam, fileSize } = body;
+
+  if (!title) return errorResponse('title is required');
+
+  const shareCode = generateShareCode();
+  const expiresAt = new Date(Date.now() + EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+  await env.DB.prepare(
+    `INSERT INTO videos (share_code, title, duration, width, height, has_webcam, file_size, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+    .bind(shareCode, title, duration || 0, width || 0, height || 0, hasWebcam ? 1 : 0, fileSize || 0, expiresAt)
+    .run();
+
+  const baseUrl = new URL(request.url).origin;
+
+  return jsonResponse({
+    shareCode,
+    uploadURL: `${baseUrl}/api/upload-data/${shareCode}`,
+    shareURL: `${baseUrl}/s/${shareCode}`,
+    expiresAt,
+  });
+}
+```
+
+---
+
+## PUT /api/upload-data/:shareCode
+
+**Simple upload** for small files. Uploads the entire video in a single request.
+
+### Request
+
+- **Body**: Raw video data (binary)
+- **Content-Type**: `video/mp4` (or appropriate MIME type)
+
+### Response
+
+```json
+{
+  "ok": true
+}
+```
+
+### Example
+
+```bash
+curl -X PUT https://your-worker.workers.dev/api/upload-data/xk3m9q7r2w \
+  -H "Authorization: Bearer YOUR_API_SECRET" \
+  -H "Content-Type: video/mp4" \
+  --data-binary @recording.mp4
+```
+
+### Implementation
+
+From `index.js:177-188`:
+
+```javascript
+async function handleUploadData(request, env, shareCode) {
+  const video = await env.DB.prepare('SELECT id FROM videos WHERE share_code = ?').bind(shareCode).first();
+  if (!video) return errorResponse('Video not found', 404);
+
+  const contentType = request.headers.get('Content-Type') || 'video/mp4';
+
+  await env.VIDEOS_BUCKET.put(`videos/${shareCode}.mp4`, request.body, {
+    httpMetadata: { contentType },
+  });
+
+  return jsonResponse({ ok: true });
+}
+```
+
+---
+
+## Multipart Upload (Recommended)
+
+For files larger than 10 MB, use multipart upload to split the file into chunks.
+
+### POST /api/upload-multipart/:shareCode
+
+Start a multipart upload session.
+
+#### Response
+
+<ResponseField name="uploadId" type="string">
+  Unique upload session ID from R2
+</ResponseField>
+
+#### Example
+
+```bash
+curl -X POST https://your-worker.workers.dev/api/upload-multipart/xk3m9q7r2w \
+  -H "Authorization: Bearer YOUR_API_SECRET"
+```
+
+```json
+{
+  "uploadId": "f3d2a1b0c9e8d7f6a5b4c3d2e1f0"
+}
+```
+
+#### Implementation
+
+From `index.js:203-213`:
+
+```javascript
+async function handleMultipartStart(request, env, shareCode) {
+  const video = await env.DB.prepare('SELECT id FROM videos WHERE share_code = ?').bind(shareCode).first();
+  if (!video) return errorResponse('Video not found', 404);
+
+  const key = `videos/${shareCode}.mp4`;
+  const multipartUpload = await env.VIDEOS_BUCKET.createMultipartUpload(key, {
+    httpMetadata: { contentType: 'video/mp4' },
+  });
+
+  return jsonResponse({ uploadId: multipartUpload.uploadId });
+}
+```
+
+---
+
+### PUT /api/upload-part/:shareCode/:uploadId/:partNumber
+
+Upload a single part (chunk) of the video.
+
+#### Path Parameters
+
+<ParamField path="shareCode" type="string" required>
+  Share code from `/api/upload`
+</ParamField>
+
+<ParamField path="uploadId" type="string" required>
+  Upload ID from `/api/upload-multipart/:shareCode`
+</ParamField>
+
+<ParamField path="partNumber" type="integer" required>
+  Part number (starts at 1, must be sequential)
+</ParamField>
+
+#### Request
+
+- **Body**: Binary chunk data
+- **Content-Type**: `application/octet-stream`
+
+#### Response
+
+<ResponseField name="partNumber" type="integer">
+  Confirmed part number
+</ResponseField>
+
+<ResponseField name="etag" type="string">
+  ETag for this part (needed for completion)
+</ResponseField>
+
+#### Example
+
+```bash
+curl -X PUT https://your-worker.workers.dev/api/upload-part/xk3m9q7r2w/f3d2a1b0c9e8d7f6a5b4c3d2e1f0/1 \
+  -H "Authorization: Bearer YOUR_API_SECRET" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @chunk1.bin
+```
+
+```json
+{
+  "partNumber": 1,
+  "etag": "\"5d41402abc4b2a76b9719d911017c592\""
+}
+```
+
+#### Implementation
+
+From `index.js:215-225`:
+
+```javascript
+async function handleMultipartPart(request, env, shareCode, uploadId, partNumber) {
+  const video = await env.DB.prepare('SELECT id FROM videos WHERE share_code = ?').bind(shareCode).first();
+  if (!video) return errorResponse('Video not found', 404);
+
+  const key = `videos/${shareCode}.mp4`;
+  const multipartUpload = env.VIDEOS_BUCKET.resumeMultipartUpload(key, uploadId);
+
+  const part = await multipartUpload.uploadPart(partNumber, request.body);
+
+  return jsonResponse({ partNumber: part.partNumber, etag: part.etag });
+}
+```
+
+---
+
+### POST /api/upload-complete/:shareCode/:uploadId
+
+Complete the multipart upload by providing all part ETags.
+
+#### Path Parameters
+
+<ParamField path="shareCode" type="string" required>
+  Share code
+</ParamField>
+
+<ParamField path="uploadId" type="string" required>
+  Upload ID from multipart start
+</ParamField>
+
+#### Request
+
+<ParamField path="parts" type="array" required>
+  Array of `{partNumber, etag}` objects from each part upload
+</ParamField>
+
+#### Response
+
+```json
+{
+  "ok": true
+}
+```
+
+#### Example
+
+```bash
+curl -X POST https://your-worker.workers.dev/api/upload-complete/xk3m9q7r2w/f3d2a1b0c9e8d7f6a5b4c3d2e1f0 \
+  -H "Authorization: Bearer YOUR_API_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "parts": [
+      {"partNumber": 1, "etag": "\"5d41402abc4b2a76b9719d911017c592\""},
+      {"partNumber": 2, "etag": "\"7d793037a0760186574b0282f2f435e7\""}
+    ]
+  }'
+```
+
+#### Implementation
+
+From `index.js:227-240`:
+
+```javascript
+async function handleMultipartComplete(request, env, shareCode, uploadId) {
+  const video = await env.DB.prepare('SELECT id FROM videos WHERE share_code = ?').bind(shareCode).first();
+  if (!video) return errorResponse('Video not found', 404);
+
+  const key = `videos/${shareCode}.mp4`;
+  const multipartUpload = env.VIDEOS_BUCKET.resumeMultipartUpload(key, uploadId);
+
+  const body = await request.json();
+  const parts = body.parts; // [{ partNumber, etag }, ...]
+
+  await multipartUpload.complete(parts);
+
+  return jsonResponse({ ok: true });
+}
+```
+
+---
+
+## PUT /api/upload-thumbnail/:shareCode
+
+Upload a high-resolution thumbnail (used for OG images and poster frames).
+
+### Request
+
+- **Body**: JPEG image data
+- **Content-Type**: `image/jpeg`
+
+### Response
+
+```json
+{
+  "ok": true
+}
+```
+
+### Example
+
+```bash
+curl -X PUT https://your-worker.workers.dev/api/upload-thumbnail/xk3m9q7r2w \
+  -H "Authorization: Bearer YOUR_API_SECRET" \
+  -H "Content-Type: image/jpeg" \
+  --data-binary @thumbnail.jpg
+```
+
+### Implementation
+
+From `index.js:190-201`:
+
+```javascript
+async function handleUploadThumbnail(request, env, shareCode) {
+  const video = await env.DB.prepare('SELECT id FROM videos WHERE share_code = ?').bind(shareCode).first();
+  if (!video) return errorResponse('Video not found', 404);
+
+  const contentType = request.headers.get('Content-Type') || 'image/jpeg';
+
+  await env.VIDEOS_BUCKET.put(`thumbnails/${shareCode}.jpg`, request.body, {
+    httpMetadata: { contentType },
+  });
+
+  return jsonResponse({ ok: true });
+}
+```
+
+---
+
+## Swift Client Example
+
+From `ShareService.swift:231-292`:
+
+```swift
+private func uploadVideo(fileURL: URL, uploadURL: String, recordingID: UUID) async throws {
+    guard let shareCode = uploadURL.split(separator: "/").last.map(String.init) else {
+        throw ShareError.invalidResponse
+    }
+
+    let fileData = try Data(contentsOf: fileURL, options: .mappedIfSafe)
+    let totalSize = fileData.count
+
+    // Start multipart upload
+    var startReq = URLRequest(url: apiURL("/api/upload-multipart/\(shareCode)"))
+    startReq.httpMethod = "POST"
+    applyAuth(&startReq)
+
+    let (startData, startResp) = try await URLSession.shared.data(for: startReq)
+    try validateResponse(startResp, data: startData)
+    let startResult = try JSONDecoder().decode(MultipartStartResponse.self, from: startData)
+    let uploadId = startResult.uploadId
+
+    // Upload parts
+    var parts: [[String: Any]] = []
+    var offset = 0
+    var partNumber = 1
+
+    while offset < totalSize {
+        let end = min(offset + 10_485_760, totalSize) // 10 MB chunks
+        let chunk = fileData[offset..<end]
+
+        var partReq = URLRequest(url: apiURL("/api/upload-part/\(shareCode)/\(uploadId)/\(partNumber)"))
+        partReq.httpMethod = "PUT"
+        partReq.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        applyAuth(&partReq)
+
+        let (partData, partResp) = try await URLSession.shared.upload(for: partReq, from: Data(chunk))
+        try validateResponse(partResp, data: partData)
+        let partResult = try JSONDecoder().decode(MultipartPartResponse.self, from: partData)
+
+        parts.append(["partNumber": partResult.partNumber, "etag": partResult.etag])
+        offset = end
+        partNumber += 1
+    }
+
+    // Complete multipart upload
+    var completeReq = URLRequest(url: apiURL("/api/upload-complete/\(shareCode)/\(uploadId)"))
+    completeReq.httpMethod = "POST"
+    completeReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    applyAuth(&completeReq)
+    completeReq.httpBody = try JSONSerialization.data(withJSONObject: ["parts": parts])
+
+    let (completeData, completeResp) = try await URLSession.shared.data(for: completeReq)
+    try validateResponse(completeResp, data: completeData)
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Metadata" icon="database" href="/api/metadata">
+    Add transcripts and summaries after upload
+  </Card>
+  <Card title="Management" icon="tools" href="/api/management">
+    Renew or delete shared videos
+  </Card>
+</CardGroup>

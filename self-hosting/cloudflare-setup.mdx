@@ -1,0 +1,144 @@
+---
+title: Cloudflare Setup
+description: Create R2 bucket, D1 database, and configure bindings
+---
+
+You'll need a Cloudflare account (free tier works) and the Wrangler CLI.
+
+## Install Dependencies
+
+<Steps>
+  <Step title="Navigate to voom-share directory">
+    ```bash
+    cd voom-share
+    npm install
+    ```
+
+    This installs `wrangler` as a dev dependency.
+  </Step>
+
+  <Step title="Log in to Cloudflare">
+    ```bash
+    npx wrangler login
+    ```
+
+    Opens your browser to authenticate with Cloudflare.
+  </Step>
+</Steps>
+
+## Create R2 Bucket
+
+R2 is Cloudflare's S3-compatible object storage.
+
+```bash
+npx wrangler r2 bucket create voom-videos
+```
+
+This creates a bucket named `voom-videos`. The Worker will store:
+
+- `videos/{share_code}.mp4` — Recorded videos
+- `thumbnails/{share_code}.jpg` — Poster images
+- `static/icon-64.png` — Voom icon (optional, for share page branding)
+
+<Note>
+  You can use a different bucket name, but you'll need to update `wrangler.toml` (line 7).
+</Note>
+
+## Create D1 Database
+
+D1 is Cloudflare's serverless SQLite database.
+
+```bash
+npx wrangler d1 create voom-share-db
+```
+
+You'll see output like:
+
+```
+✅ Successfully created DB 'voom-share-db'
+
+[[d1_databases]]
+binding = "DB"
+database_name = "voom-share-db"
+database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+```
+
+**Copy the `database_id` value.**
+
+## Update wrangler.toml
+
+Open `wrangler.toml` and replace `YOUR_DATABASE_ID` with the ID from the previous step:
+
+```toml wrangler.toml
+name = "voom-share"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[[r2_buckets]]
+binding = "VIDEOS_BUCKET"
+bucket_name = "voom-videos"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "voom-share-db"
+database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # ← Paste your ID here
+
+[triggers]
+crons = ["0 3 * * *"]  # Daily cleanup at 3:00 AM UTC
+```
+
+## Initialize Database Schema
+
+The `schema.sql` file defines two tables:
+
+- **`videos`** — Metadata (share_code, title, duration, width, height, expires_at, etc.)
+- **`transcript_segments`** — Timestamped transcript entries
+
+Run the schema against your **remote** D1 database:
+
+```bash
+npx wrangler d1 execute voom-share-db --file=./schema.sql --remote
+```
+
+<Warning>
+  The `--remote` flag is critical. Without it, the schema only applies to the local dev database.
+</Warning>
+
+## Set API Secret
+
+The Worker authenticates uploads using a Bearer token. Generate a secure random string and store it:
+
+```bash
+npx wrangler secret put API_SECRET
+```
+
+You'll be prompted to enter the secret. **Save this value** — you'll need it when configuring the macOS app.
+
+<Tip>
+  Generate a strong secret with:
+  ```bash
+  openssl rand -base64 32
+  ```
+</Tip>
+
+## Verify Configuration
+
+Check that all resources are ready:
+
+```bash
+npx wrangler r2 bucket list
+npx wrangler d1 list
+npx wrangler secret list
+```
+
+You should see:
+
+- `voom-videos` in the bucket list
+- `voom-share-db` in the D1 list
+- `API_SECRET` in the secrets list
+
+## Next Step
+
+<Card title="Deploy the Worker" icon="rocket" href="/self-hosting/deployment">
+  Push your Worker to Cloudflare's edge network
+</Card>

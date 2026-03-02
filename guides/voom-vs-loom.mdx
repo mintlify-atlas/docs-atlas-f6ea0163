@@ -1,0 +1,101 @@
+---
+title: Voom vs Loom
+description: Feature comparison between Voom and Loom
+---
+
+## Overview
+
+Voom is an open-source alternative to Loom built for macOS. It records your screen, camera, and mic — then gives you a shareable link in seconds. Unlike Loom, Voom is **local-first** and **privacy-focused**.
+
+<Note>
+Voom doesn't try to replace every Loom feature. No comments, no reactions, no CRM integrations, no analytics dashboard. It records your screen, transcribes it locally, and gives you a link. That's it.
+</Note>
+
+## Feature Comparison
+
+| | Voom | Loom |
+|---|---|---|
+| **Price** | Free, forever | $15/user/month (Business) |
+| **App size** | ~5 MB | ~200 MB |
+| **Privacy** | Recordings stay on your Mac. Cloud sharing is opt-in to your own infra | All recordings uploaded to Loom servers |
+| **Transcription** | On-device via WhisperKit — nothing leaves your machine | Cloud-based |
+| **Screen + cam + mic** | Yes | Yes |
+| **Share via link** | Yes (self-hosted on Cloudflare) | Yes (Loom-hosted) |
+| **Synced transcript** | Yes | Yes |
+| **Link expiry** | 30 days (configurable) | Never (paid), 5 min (free) |
+| **Recording limit** | Unlimited, any length | 5 min (free), 45 min (business) |
+| **Storage limit** | Your disk + your R2 bucket | 25 videos (free) |
+| **Open source** | Yes (MIT) | No |
+| **Custom branding** | Fork it, it's yours | Enterprise plan only |
+| **Electron** | No — native Swift/SwiftUI | Yes |
+| **Dependencies** | WhisperKit | Electron, ffmpeg, many more |
+| **Offline recording** | Yes | No |
+| **Platform** | macOS | macOS, Windows, Chrome, iOS, Android |
+
+## Key Differences
+
+<AccordionGroup>
+  <Accordion title="Privacy & Data Control">
+    **Voom**: All recordings stay on your Mac by default. Cloud sharing is entirely opt-in and uses **your own Cloudflare infrastructure** (~$0.35/month). You control where your data lives.
+    
+    **Loom**: All recordings are automatically uploaded to Loom's servers. You don't control the infrastructure.
+  </Accordion>
+
+  <Accordion title="Transcription">
+    **Voom**: Uses WhisperKit (distil-large-v3) for on-device transcription. Nothing leaves your machine. Works completely offline.
+    
+    **Loom**: Cloud-based transcription. Requires internet connection and uploads audio to their servers.
+  </Accordion>
+
+  <Accordion title="App Size & Architecture">
+    **Voom**: ~5 MB native Swift/SwiftUI app using macOS-native ScreenCaptureKit. Hardware-accelerated HEVC encoding.
+    
+    **Loom**: ~200 MB Electron app with bundled dependencies including ffmpeg.
+  </Accordion>
+
+  <Accordion title="Cost Model">
+    **Voom**: Free and open source (MIT license). Optional cloud sharing costs ~$0.35/month for 2-3 videos/day on your Cloudflare account.
+    
+    **Loom**: $15/user/month for Business plan. Free tier limited to 5-minute recordings and 25 videos.
+  </Accordion>
+
+  <Accordion title="Platform Support">
+    **Voom**: macOS only (requires macOS 15+). Native Apple Silicon support.
+    
+    **Loom**: Cross-platform (macOS, Windows, Chrome, iOS, Android).
+  </Accordion>
+</AccordionGroup>
+
+## What Voom Doesn't Have
+
+Voom intentionally keeps things minimal. Here's what you won't find:
+
+- Comments or reactions on videos
+- CRM integrations (Salesforce, HubSpot, etc.)
+- Analytics dashboard or viewer tracking
+- Team workspaces or admin controls
+- Video editing tools
+- Mobile apps
+- Windows or Linux support
+- Browser extension
+
+<Tip>
+If you need a simple, privacy-focused screen recorder with transcription and optional sharing, Voom is for you. If you need enterprise features, analytics, or cross-platform support, stick with Loom.
+</Tip>
+
+## Technology Stack
+
+Voom uses modern, native technologies:
+
+| Component | Technology |
+|-----------|------------|
+| App | Swift, SwiftUI, ScreenCaptureKit, AVFoundation |
+| Encoding | HEVC (VideoToolbox hardware encoder) |
+| Transcription | WhisperKit (on-device, Apple Silicon) |
+| Storage | Cloudflare R2 |
+| Database | Cloudflare D1 (SQLite) |
+| API + Share Page | Cloudflare Workers |
+
+## License
+
+Voom is open source under the MIT license. You can fork it, modify it, and use it however you want. See the [LICENSE](https://github.com/yourusername/voom/blob/main/LICENSE) for details.

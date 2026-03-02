@@ -1,0 +1,178 @@
+---
+title: Recording Screen & Camera
+description: Capture your screen, camera, and audio with Voom's native macOS recorder
+---
+
+Voom captures your screen at full Retina resolution using ScreenCaptureKit, with optional camera overlay and dual audio sources.
+
+## Starting a Recording
+
+You can start recording in multiple ways:
+
+<Steps>
+  <Step title="From the menu bar">
+    Click the Voom icon in your menu bar, configure your sources, then click **Start Recording**
+  </Step>
+  
+  <Step title="With keyboard shortcut">
+    Press `Cmd+Shift+R` from anywhere to instantly start/stop recording
+  </Step>
+</Steps>
+
+<Note>
+  The global keyboard shortcut can be disabled in Settings → Keyboard if you prefer manual control.
+</Note>
+
+## Recording Sources
+
+Voom supports three capture sources that can be combined:
+
+### Screen Capture
+
+Records your selected display at native Retina resolution using HEVC hardware encoding:
+
+- Captures at full backing scale factor (2x for Retina displays)
+- 60 FPS frame rate
+- HEVC/H.265 compression via VideoToolbox
+- Cursor always visible in recordings
+- Voom's own windows are automatically excluded (except camera overlay)
+
+<Tip>
+  Select your display from the dropdown before recording. Voom remembers your last choice.
+</Tip>
+
+### Camera Overlay
+
+Adds a picture-in-picture webcam feed to your recording:
+
+- Captures at 720p60 from your default camera
+- Draggable positioning (bottom-left, bottom-right, top-left, top-right)
+- The camera overlay is captured directly by ScreenCaptureKit—what you see is what gets recorded
+- Camera feed is optional and can be toggled on/off per recording
+
+<Warning>
+  The camera overlay appears as a floating window. Position it before recording starts, as the position is captured into the final video.
+</Warning>
+
+### Audio Recording
+
+Voom can capture two audio sources simultaneously:
+
+**System Audio**
+- Records all system sound (apps, alerts, browser audio)
+- Captured at 48kHz stereo
+- Requires Screen Recording permission
+
+**Microphone Audio**
+- Records from your default microphone
+- Captured separately from system audio for better quality
+- Mixed into the final video alongside system audio
+
+<Note>
+  Both audio sources are mixed into the final video file. Transcription uses the combined audio track.
+</Note>
+
+## During Recording
+
+### Recording Controls
+
+While recording, you'll see:
+
+- **Live timer** showing elapsed recording time (MM:SS format)
+- **Pause/Resume** button to temporarily pause capture
+- **Stop** button to end the recording
+
+### Pause & Resume
+
+Pausing a recording freezes all capture:
+
+- Screen frames stop being captured
+- Audio (system + mic) stops recording
+- Timer pauses
+- Resume picks up seamlessly—paused time is removed from the final video
+
+<Tip>
+  Pause is useful for handling interruptions without restarting your recording.
+</Tip>
+
+### Stopping Recording
+
+When you stop:
+
+<Steps>
+  <Step title="Video finalization">
+    Voom finalizes the HEVC video file and generates a thumbnail
+  </Step>
+  
+  <Step title="Auto-save to library">
+    Recording is saved to `~/Movies/Voom/` and appears in your library immediately
+  </Step>
+  
+  <Step title="Auto-transcription (if enabled)">
+    If your recording has audio and auto-transcribe is enabled, WhisperKit begins transcribing in the background
+  </Step>
+</Steps>
+
+## Recording Settings
+
+### Auto-Transcription
+
+By default, recordings with audio are automatically transcribed after capture:
+
+- Enabled: Settings → General → "Automatically transcribe recordings"
+- Uses WhisperKit's distil-large-v3 model
+- Runs entirely on-device (nothing leaves your Mac)
+- Also generates AI title and summary (if Apple Intelligence is available)
+
+### Global Hotkey
+
+Toggle the `Cmd+Shift+R` shortcut:
+
+- Enabled: Settings → Keyboard → "Global keyboard shortcut"
+- Works from any app, even when Voom is hidden
+- Starts recording if idle, stops if already recording
+
+## Output Format
+
+Recordings are saved as `.mov` files with:
+
+- **Video codec:** HEVC (H.265) hardware-accelerated
+- **Resolution:** Native display resolution (e.g., 2880×1800 for Retina 13")
+- **Frame rate:** 60 FPS
+- **Audio codec:** AAC, 48kHz stereo (system + mic mixed)
+- **File size:** Approximately 50-150 MB per minute (depends on content)
+
+## Permissions Required
+
+<Warning>
+  Voom requires the following macOS permissions. You'll be prompted on first use:
+</Warning>
+
+- **Screen Recording** — Required for capturing screen and system audio
+- **Camera** — Required if using camera overlay
+- **Microphone** — Required if recording microphone audio
+
+Grant permissions in **System Settings → Privacy & Security → Screen Recording / Camera / Microphone**.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="No displays appear in the dropdown">
+    Restart Voom after granting Screen Recording permission. macOS sometimes requires an app restart for ScreenCaptureKit to detect displays.
+  </Accordion>
+  
+  <Accordion title="Camera overlay doesn't appear in recording">
+    The camera overlay window must be visible on-screen during recording. If it's minimized or hidden, it won't be captured. Reposition it before starting.
+  </Accordion>
+  
+  <Accordion title="System audio isn't captured">
+    Check that:
+    - Screen Recording permission is granted in System Settings
+    - "System Audio" toggle is enabled in the Voom recording panel
+    - You're playing audio from an app (some apps route audio differently)
+  </Accordion>
+  
+  <Accordion title="Recording starts but immediately stops">
+    This usually indicates a codec error. Check Console.app for "Voom" logs. Requires macOS 15+ with HEVC VideoToolbox support.
+  </Accordion>
+</AccordionGroup>

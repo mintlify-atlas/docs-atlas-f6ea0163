@@ -1,0 +1,177 @@
+---
+title: Deployment
+description: Deploy the Worker and verify it's running
+---
+
+Once you've [configured Cloudflare resources](/self-hosting/cloudflare-setup), deploy the Worker to Cloudflare's edge network.
+
+## Deploy Command
+
+```bash
+cd voom-share
+npx wrangler deploy
+```
+
+You'll see output like:
+
+```
+Total Upload: 8.5 KiB / gzip: 2.1 KiB
+Uploaded voom-share (1.23 sec)
+Published voom-share (0.45 sec)
+  https://voom-share.your-account.workers.dev
+Current Deployment ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+**Save the Worker URL** — this is what you'll configure in the macOS app.
+
+## Verify Deployment
+
+Test the root endpoint:
+
+```bash
+curl https://voom-share.your-account.workers.dev/
+```
+
+Expected response:
+
+```
+Voom Share
+```
+
+## Test Authentication
+
+Try hitting an API endpoint without auth:
+
+```bash
+curl -X POST https://voom-share.your-account.workers.dev/api/upload
+```
+
+Should return:
+
+```json
+{"error":"Unauthorized"}
+```
+
+Now test with your API secret:
+
+```bash
+curl -X POST https://voom-share.your-account.workers.dev/api/upload \
+  -H "Authorization: Bearer YOUR_API_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Test Recording","duration":10}'
+```
+
+Expected response:
+
+```json
+{
+  "shareCode": "a3k9m2p4qr",
+  "uploadURL": "https://voom-share.your-account.workers.dev/api/upload-data/a3k9m2p4qr",
+  "shareURL": "https://voom-share.your-account.workers.dev/s/a3k9m2p4qr",
+  "expiresAt": "2026-04-01T12:34:56.789Z"
+}
+```
+
+<Note>
+  The share page won't load yet because no video has been uploaded. The Worker creates the database entry but marks `upload_completed = 0`.
+</Note>
+
+## Deploy Updates
+
+Whenever you modify `src/index.js`, redeploy:
+
+```bash
+npx wrangler deploy
+```
+
+Cloudflare Workers deploy globally in seconds. No downtime, no versioning required.
+
+## Custom Domain (Optional)
+
+You can map a custom domain to your Worker:
+
+<Steps>
+  <Step title="Add domain to Cloudflare">
+    Transfer your domain to Cloudflare DNS or add it as a zone.
+  </Step>
+
+  <Step title="Add route in wrangler.toml">
+    ```toml wrangler.toml
+    routes = [
+      { pattern = "share.yourdomain.com/*", zone_name = "yourdomain.com" }
+    ]
+    ```
+  </Step>
+
+  <Step title="Redeploy">
+    ```bash
+    npx wrangler deploy
+    ```
+
+    Cloudflare automatically provisions an SSL certificate.
+  </Step>
+</Steps>
+
+## View Logs
+
+Stream live Worker logs:
+
+```bash
+npx wrangler tail
+```
+
+This shows:
+
+- Incoming requests
+- `console.log()` output
+- Errors and exceptions
+
+## Cron Trigger Verification
+
+The Worker's cron trigger runs daily at 3:00 AM UTC. To test the cleanup function manually, you can invoke the scheduled handler via the Cloudflare dashboard:
+
+1. Go to **Workers & Pages** → your Worker
+2. Click **Triggers** → **Cron Triggers**
+3. Click **Send Test Event**
+
+Or test the cleanup logic locally:
+
+```bash
+npx wrangler dev
+```
+
+Then simulate a cron event in the console.
+
+## Environment Variables
+
+The Worker reads from:
+
+- `env.API_SECRET` — Set via `wrangler secret put API_SECRET`
+- `env.VIDEOS_BUCKET` — R2 binding from `wrangler.toml`
+- `env.DB` — D1 binding from `wrangler.toml`
+
+To update the API secret:
+
+```bash
+npx wrangler secret put API_SECRET
+# Enter new value when prompted
+npx wrangler deploy
+```
+
+<Warning>
+  Never commit secrets to `wrangler.toml` or `.env` files. Always use `wrangler secret put`.
+</Warning>
+
+## Rollback
+
+Cloudflare keeps deployment history. To rollback:
+
+1. Go to **Workers & Pages** → your Worker → **Deployments**
+2. Find a previous deployment
+3. Click **...** → **Rollback to this deployment**
+
+## Next Step
+
+<Card title="Configure the macOS App" icon="gear" href="/self-hosting/configuration">
+  Connect Voom to your Worker URL and API secret
+</Card>

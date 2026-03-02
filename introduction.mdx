@@ -1,0 +1,149 @@
+---
+title: Introduction
+description: Open-source Loom alternative for macOS. Record your screen, camera, and mic — get a shareable link in seconds.
+---
+
+<img
+  src="/images/hero.png"
+  alt="Voom screen recording interface"
+  className="rounded-lg"
+/>
+
+## What is Voom?
+
+Voom is a privacy-first screen recording tool built natively for macOS. Unlike Loom, Voom keeps all recordings on your Mac by default. Cloud sharing is entirely optional and runs on your own Cloudflare infrastructure for ~$0.35/month.
+
+At just 5MB, Voom replaces Electron-based alternatives with a native Swift/SwiftUI app that uses ScreenCaptureKit and hardware-accelerated HEVC encoding. Transcription runs entirely on-device using WhisperKit — nothing leaves your machine.
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart"
+    icon="bolt"
+    href="/quickstart"
+  >
+    Get your first recording in under 2 minutes
+  </Card>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Detailed setup instructions for app and cloud sharing
+  </Card>
+  <Card
+    title="App Settings"
+    icon="gear"
+    href="/app/settings"
+  >
+    Configure settings, hotkeys, and sharing options
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/overview"
+  >
+    Cloudflare Worker API for custom integrations
+  </Card>
+</CardGroup>
+
+## Key features
+
+### Privacy-first architecture
+
+Recordings stay on your Mac until you explicitly choose to share them. When you do share, videos upload to your own Cloudflare R2 bucket — not a third-party server.
+
+- **Local-first storage**: All recordings saved to your Mac
+- **On-device transcription**: WhisperKit (distil-large-v3) runs entirely offline
+- **Self-hosted sharing**: Optional upload to your own Cloudflare account
+- **No telemetry**: Zero analytics or tracking
+
+### Professional recording quality
+
+<AccordionGroup>
+  <Accordion title="Screen + camera + audio">
+    Capture any display at full retina resolution with HEVC hardware encoding. Add a draggable picture-in-picture webcam overlay and record both system audio and microphone simultaneously.
+  </Accordion>
+  <Accordion title="Real-time audio mixing">
+    Microphone and system audio are mixed into a single track during recording. Voice is automatically prioritized — system audio ducks when you speak.
+  </Accordion>
+  <Accordion title="Instant transcription">
+    Enable auto-transcription in settings to get a synced transcript immediately after recording. Powered by WhisperKit's distil-large-v3 model running on Apple Silicon.
+  </Accordion>
+</AccordionGroup>
+
+### Share with a link
+
+Upload recordings to your own Cloudflare infrastructure and get a clean share page with:
+
+- Video player with range-request seeking
+- Live captions (CC toggle)
+- Clickable synced transcript with timestamp links
+- View counter
+- 30-day auto-expiry (configurable)
+
+<Note>
+  Cloud sharing requires a Cloudflare account. The Worker, R2 storage, and D1 database cost approximately $0.35/month for 2-3 videos per day.
+</Note>
+
+## Voom vs Loom
+
+| Feature | Voom | Loom |
+|---------|------|------|
+| **Price** | Free, forever | $15/user/month (Business) |
+| **App size** | ~5 MB | ~200 MB |
+| **Privacy** | Local-first, opt-in cloud sharing to your infra | All uploads to Loom servers |
+| **Transcription** | On-device via WhisperKit | Cloud-based |
+| **Recording limit** | Unlimited, any length | 5 min (free), 45 min (business) |
+| **Storage limit** | Your disk + your R2 bucket | 25 videos (free) |
+| **Open source** | Yes (MIT) | No |
+| **Platform** | macOS 15+ | macOS, Windows, Chrome, iOS, Android |
+| **Tech stack** | Native Swift/SwiftUI | Electron |
+
+Voom doesn't try to replace every Loom feature. No comments, no reactions, no CRM integrations, no analytics dashboard. It records your screen, transcribes it locally, and gives you a link. That's it.
+
+## Architecture
+
+Voom is split into two independent components:
+
+```
+Voom/                   macOS app (Swift, SwiftUI, ScreenCaptureKit)
+voom-share/             Cloudflare Worker (R2 + D1 + Workers)
+```
+
+The macOS app handles all recording, transcription, and local playback. The Cloudflare Worker is a separate deployment you control, used only when you choose to share a recording.
+
+### Technology stack
+
+| Component | Technology |
+|-----------|------------|
+| App framework | Swift 6, SwiftUI |
+| Screen capture | ScreenCaptureKit |
+| Video encoding | HEVC (VideoToolbox hardware encoder) |
+| Audio capture | AVFoundation (CoreAudio) |
+| Transcription | WhisperKit (on-device, Apple Silicon) |
+| Cloud storage | Cloudflare R2 |
+| Database | Cloudflare D1 (SQLite) |
+| Share page | Cloudflare Workers |
+
+<Warning>
+  Voom requires macOS 15.0 or later and Apple Silicon for on-device transcription. Intel Macs are not currently supported.
+</Warning>
+
+## What's next?
+
+<CardGroup cols={2}>
+  <Card
+    title="Get started"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Record your first video in under 2 minutes
+  </Card>
+  <Card
+    title="Set up cloud sharing"
+    icon="cloud"
+    href="/installation#cloud-sharing"
+  >
+    Deploy your own Cloudflare Worker for shareable links
+  </Card>
+</CardGroup>

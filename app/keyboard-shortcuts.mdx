@@ -1,0 +1,188 @@
+---
+title: Keyboard Shortcuts
+description: Complete keyboard shortcut reference for Voom
+---
+
+Voom supports global and in-app keyboard shortcuts to speed up your workflow.
+
+## Global Shortcuts
+
+These work from anywhere on your Mac, even when Voom is hidden or another app is focused.
+
+| Shortcut | Action | Notes |
+|----------|--------|-------|
+| `Cmd+Shift+R` | Start/Stop Recording | Toggle recording on/off. Can be disabled in Settings → Keyboard. |
+
+<Tip>
+  Global shortcuts require macOS Accessibility permissions. Voom uses Carbon Event Handlers to register `Cmd+Shift+R` system-wide.
+</Tip>
+
+## Library Window Shortcuts
+
+These work when the Library window is focused.
+
+### Navigation & Selection
+
+| Shortcut | Action |
+|----------|--------|
+| Click | Select a recording |
+| `Cmd+Click` | Add/remove recording from selection |
+| `Shift+Click` | Select range of recordings |
+| Arrow keys | Move selection up/down (when sidebar is focused) |
+
+### File Operations
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+Backspace` | Delete selected recording(s) |
+| `Cmd+L` | Open Library window (from anywhere in Voom) |
+
+<Warning>
+  `Cmd+Backspace` deletes immediately (or shows confirmation for multiple selections). Deletion is permanent—there's no undo.
+</Warning>
+
+### Search
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+F` | Focus search bar |
+| `Esc` | Clear search (when search bar is focused) |
+
+<Note>
+  Search is always visible at the top of the library. `Cmd+F` is a standard macOS shortcut that focuses the search field.
+</Note>
+
+## Player View Shortcuts
+
+These work when a recording is selected and playing in the detail view.
+
+### Playback Controls
+
+| Shortcut | Action |
+|----------|--------|
+| Spacebar | Play/Pause |
+| `←` / `→` | Skip backward/forward 5 seconds |
+| `↑` / `↓` | Volume up/down |
+| `Cmd+F` | Enter fullscreen |
+| `Esc` | Exit fullscreen |
+
+<Note>
+  These are standard macOS AVKit shortcuts provided by the native video player. Behavior may vary slightly by macOS version.
+</Note>
+
+### Transcript Interaction
+
+| Shortcut | Action |
+|----------|--------|
+| Click segment | Jump to that timestamp in the video |
+| Double-click segment | Edit segment text |
+| `Enter` | Save edited segment text |
+| `Esc` | Cancel segment editing |
+
+### Metadata Editing
+
+| Shortcut | Action |
+|----------|--------|
+| Click title | Start editing title |
+| `Enter` | Save title changes |
+| `Tab` | Move to next field |
+
+## Recording Panel Shortcuts
+
+These work when the recording panel (menu bar dropdown) is open.
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+Shift+R` | Start recording (same as global shortcut) |
+| `Esc` | Close recording panel |
+
+<Note>
+  The recording panel is the dropdown that appears when you click the Voom menu bar icon. Most interactions are mouse/trackpad-based.
+</Note>
+
+## Settings Window Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+,` | Open Settings (standard macOS shortcut) |
+| `Cmd+W` | Close Settings window |
+| `Tab` | Navigate between fields |
+
+## Hidden Shortcuts
+
+These aren't documented in the UI but are available:
+
+| Shortcut | Action | Context |
+|----------|--------|----------|
+| `Cmd+C` | Copy share link | When a shared recording is selected in the library |
+| `Cmd+R` | Reload recording metadata | Debug feature—forces re-read from disk |
+
+<Warning>
+  Hidden shortcuts are not officially supported and may change in future versions.
+</Warning>
+
+## macOS Standard Shortcuts
+
+These work across all macOS apps, including Voom:
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+Q` | Quit Voom |
+| `Cmd+H` | Hide Voom |
+| `Cmd+M` | Minimize window |
+| `Cmd+W` | Close current window |
+| `Cmd+,` | Open Settings |
+| `Cmd+Tab` | Switch to Voom (when in another app) |
+
+## Customization
+
+<Warning>
+  Voom does not currently support customizing keyboard shortcuts. The shortcuts listed above are hardcoded.
+</Warning>
+
+If you need to change shortcuts:
+
+- **Disable conflicting shortcuts** in System Settings → Keyboard → Keyboard Shortcuts
+- **Use a third-party tool** like BetterTouchTool or Karabiner-Elements to remap keys
+- **Submit a feature request** on GitHub if you need custom shortcut support
+
+## Accessibility
+
+Voom's keyboard shortcuts follow macOS Human Interface Guidelines:
+
+- **VoiceOver compatible** — All major actions are accessible via keyboard navigation
+- **Full Keyboard Access** — Enable in System Settings → Keyboard → Keyboard Navigation to tab through all controls
+- **Predictable behavior** — Standard macOS shortcuts (Cmd+W, Cmd+Q, Spacebar) work as expected
+
+<Tip>
+  If you rely on VoiceOver or Full Keyboard Access, Voom's native SwiftUI controls are fully accessible. Report any issues on GitHub.
+</Tip>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cmd+Shift+R doesn't work globally">
+    Check:
+    - Settings → Keyboard → "Global keyboard shortcut" is enabled
+    - Voom has Accessibility permissions (System Settings → Privacy & Security → Accessibility)
+    - Another app isn't using `Cmd+Shift+R` (disable in System Settings → Keyboard → Keyboard Shortcuts)
+    - Restart Voom after enabling the setting
+  </Accordion>
+  
+  <Accordion title="Shortcuts work inconsistently">
+    If shortcuts sometimes don't work:
+    - Ensure the correct window is focused (Library vs. Player vs. Settings)
+    - Check for macOS keyboard input source conflicts (some languages/layouts block certain shortcuts)
+    - Restart Voom to reset event handlers
+  </Accordion>
+  
+  <Accordion title="Spacebar doesn't play/pause video">
+    Spacebar only works when the video player is focused:
+    - Click the video player area to focus it
+    - If the transcript or search bar is focused, Spacebar types a space instead
+  </Accordion>
+  
+  <Accordion title="Can I change the global shortcut from Cmd+Shift+R?">
+    Not currently. The shortcut is hardcoded in `GlobalHotkey.swift`. You can disable it in Settings and use a third-party tool to map a different key to the menu bar "Start Recording" action.
+  </Accordion>
+</AccordionGroup>

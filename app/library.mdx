@@ -1,0 +1,326 @@
+---
+title: Managing Your Library
+description: Browse, search, play, and organize your Voom recordings
+---
+
+The Library window is your central hub for managing recordings. Access it from the menu bar: **Open Library** or press `Cmd+L`.
+
+## Library Overview
+
+The library uses a two-column layout:
+
+- **Sidebar (left):** List of all recordings, grouped by date
+- **Detail view (right):** Video player, transcript, and metadata for the selected recording
+
+### Stats Bar
+
+At the top of the sidebar, you'll see aggregate stats:
+
+- **Video count** — Total number of recordings
+- **Total duration** — Combined length of all recordings (hours + minutes)
+- **Storage used** — Total disk space occupied by video files
+
+<Tip>
+  Stats update in real-time as you add or delete recordings.
+</Tip>
+
+## Date Grouping
+
+Recordings are automatically grouped:
+
+- **Today** — Recordings from the current day
+- **Yesterday** — Recordings from the previous day
+- **This Week** — Recordings from the last 7 days
+- **This Month** — Recordings from the last 30 days
+- **Month YYYY** — Older recordings grouped by month (e.g., "February 2026")
+
+Within each group, recordings are sorted newest-first.
+
+## Recording Rows
+
+Each recording displays:
+
+- **Thumbnail** — Frame captured from the first second of the video
+- **Title** — Auto-generated (if transcribed) or filename-based
+- **Relative date** — "2 hours ago", "3 days ago", etc.
+- **File size** — Disk space used by the video file
+- **Status badges:**
+  - **Link icon (green)** — Shared via link and not expired
+  - **Link icon (orange)** — Shared link has expired
+  - **Transcript icon (green)** — Transcription completed
+  - **Spinner** — Transcription in progress
+
+### Duration Badge
+
+Each thumbnail shows the recording's duration in the bottom-right corner (e.g., "5:32").
+
+## Searching Recordings
+
+### Search Scope
+
+The search bar (top of the library) searches:
+
+- Recording **titles**
+- Full **transcript text** (all segments)
+
+<Tip>
+  Search is incredibly powerful for transcribed recordings. Find any word you spoke and jump straight to that moment.
+</Tip>
+
+### Search Behavior
+
+- Type in the search field to filter recordings in real-time
+- Search is case-insensitive
+- Partial matches are included
+- Clear the search field to show all recordings again
+
+<Note>
+  If no recordings match, you'll see a "No Results" empty state.
+</Note>
+
+## Playing Recordings
+
+### Opening the Player
+
+Click any recording in the sidebar to open it in the detail view:
+
+- **Video player** with native macOS controls (play/pause, scrubbing, volume, fullscreen, Picture-in-Picture)
+- **Action bar** with captions, transcription, and sharing controls
+- **Details section** showing metadata (date, duration, resolution, file size, sources)
+- **Summary section** (if AI-generated or manually added)
+- **Transcript section** with synced highlighting
+
+### Playback Controls
+
+**Built-in macOS controls:**
+- Spacebar — Play/pause
+- Arrow keys — Skip forward/backward
+- Volume slider
+- Fullscreen button
+- Picture-in-Picture button
+
+**Voom-specific controls:**
+- **Playback speed** — Menu to select 0.5x, 0.75x, 1x, 1.25x, 1.5x, 2x
+- **Captions toggle** — Show/hide live captions synced to transcript
+- **Transcript click-to-seek** — Click any transcript segment to jump to that timestamp
+
+<Tip>
+  Use 1.5x or 2x speed to quickly review long recordings.
+</Tip>
+
+### Editing Metadata
+
+You can edit:
+
+- **Title** — Click the title field, type, and press Enter to save
+- **Summary** — Edit the summary text area (auto-saves on blur)
+- **Transcript segments** — Double-click any segment to correct errors
+
+## Selecting Multiple Recordings
+
+### Selection Methods
+
+- **Click** — Select a single recording
+- **Cmd+Click** — Add/remove individual recordings from selection
+- **Shift+Click** — Select a range of recordings
+
+### Multi-Select Actions
+
+When multiple recordings are selected, the toolbar shows:
+
+- **Share File** — Share via macOS share sheet (AirDrop, Messages, etc.)
+- **Delete** — Permanently delete all selected recordings
+
+<Warning>
+  Bulk sharing via link is not supported. You can only share one recording at a time via Cloudflare Worker.
+</Warning>
+
+## Sharing Recordings
+
+### Share via Link
+
+Upload a recording to your Cloudflare Worker and get a shareable URL:
+
+<Steps>
+  <Step title="Select the recording">
+    Click the recording in the sidebar
+  </Step>
+  
+  <Step title="Click 'Share via Link'">
+    In the toolbar or right-click menu, select **Share via Link**
+  </Step>
+  
+  <Step title="Wait for upload">
+    Voom uploads the video and transcript to Cloudflare R2. Progress shows in the toolbar.
+  </Step>
+  
+  <Step title="Link auto-copied">
+    When upload completes, the share URL is copied to your clipboard. Paste it anywhere.
+  </Step>
+</Steps>
+
+**Link features:**
+- 30-day expiration (configurable in your Worker)
+- View-only (no download button)
+- Synced transcript and live captions
+- Dark-themed share page
+
+<Note>
+  Requires Cloudflare Worker setup. See [Cloud Sharing Setup](/cloud/setup) for configuration.
+</Note>
+
+### Copy Existing Link
+
+If a recording is already shared:
+
+- Click the **green link icon** in the toolbar to copy the URL again
+- The expiry date is shown on hover (e.g., "Expires in 28 days")
+
+### Renewing Expired Links
+
+If a link has expired (orange icon):
+
+1. Right-click the recording
+2. Select **"Renew Link"**
+3. Voom extends the expiration by another 30 days (no re-upload required)
+
+### Removing Shared Links
+
+To unshare a recording:
+
+1. Click the **X icon** next to the link icon in the toolbar, or
+2. Right-click and select **"Remove Link"**
+
+This deletes the video and transcript from Cloudflare R2.
+
+### Share File
+
+To share the raw `.mov` file:
+
+- Click **Share File** in the toolbar (square with arrow icon)
+- Use the macOS share sheet (AirDrop, Messages, Mail, etc.)
+- Share multiple files at once by selecting multiple recordings
+
+## Deleting Recordings
+
+### Single Delete
+
+- Select a recording and press `Cmd+Backspace`, or
+- Right-click and choose **Delete**
+
+The recording is immediately deleted from disk.
+
+### Bulk Delete
+
+- Select multiple recordings (Cmd+Click or Shift+Click)
+- Press `Cmd+Backspace` or click **Delete** in the toolbar
+- Confirm the deletion dialog
+
+<Warning>
+  Deletion is permanent. There's no trash/undo. The video file and thumbnail are removed from `~/Movies/Voom/`.
+</Warning>
+
+## Revealing in Finder
+
+To see a recording's file on disk:
+
+1. Select the recording
+2. Click **Reveal in Finder** (folder icon) in the toolbar, or
+3. Right-click and choose **Reveal in Finder**
+
+This opens Finder and highlights the `.mov` file.
+
+### File Locations
+
+- **Videos:** `~/Movies/Voom/YYYY-MM-DD_HH-MM-SS.mov`
+- **Thumbnails:** `~/Movies/Voom/.thumbnails/<UUID>.jpg`
+- **Metadata:** Stored in `~/Library/Application Support/Voom/recordings.json`
+
+## Context Menu Actions
+
+Right-click any recording to access:
+
+- **Share via Link** — Upload and get shareable URL
+- **Copy Link** — Copy existing share URL (if already shared)
+- **Renew Link** — Extend expiration by 30 days (if expired)
+- **Remove Link** — Delete from Cloudflare R2 (if shared)
+- **Regenerate Title & Summary** — Re-run Apple Intelligence analysis on the transcript
+- **Reveal in Finder** — Show the `.mov` file in Finder
+- **Copy File Path** — Copy absolute file path to clipboard
+- **Share** — macOS share sheet
+- **Delete** — Permanently delete the recording
+
+<Tip>
+  "Regenerate Title & Summary" is useful if the first AI-generated title wasn't great. It re-analyzes the transcript with a fresh prompt.
+</Tip>
+
+## Empty States
+
+### No Recordings
+
+If you haven't recorded anything yet, you'll see:
+
+- Icon: Video with slash
+- Message: "No Recordings"
+- Subtitle: "Record your first video from the menu bar."
+
+### No Search Results
+
+If your search doesn't match any recordings:
+
+- Icon: Magnifying glass
+- Message: "No Results"
+- Subtitle: "No recordings match \"[your search]\"."
+
+### No Selection
+
+If no recording is selected in the sidebar:
+
+- Icon: Play rectangle
+- Message: "Select a Recording"
+- Subtitle: "Choose a recording from the sidebar to preview and play."
+
+### Multiple Selection
+
+If multiple recordings are selected:
+
+- Icon: Rectangle stack
+- Message: "X Recordings Selected"
+- Subtitle: "Use the toolbar to share or delete the selected recordings."
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+L` | Open Library window |
+| `Cmd+Backspace` | Delete selected recording(s) |
+| Spacebar | Play/pause current video |
+| Arrow keys | Scrub video timeline |
+
+<Note>
+  Additional playback shortcuts (fullscreen, PiP, volume) are standard macOS AVKit controls and vary by system version.
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Recordings don't appear in library">
+    Check `~/Movies/Voom/` in Finder. If files exist but don't show in Voom, the `recordings.json` metadata file may be corrupted. Restart Voom to rebuild the index.
+  </Accordion>
+  
+  <Accordion title="Thumbnails are missing">
+    Thumbnails are generated asynchronously after recording. If missing, check `~/Movies/Voom/.thumbnails/`. You can re-generate by re-saving metadata (edit the title and save).
+  </Accordion>
+  
+  <Accordion title="Search doesn't find transcript text">
+    Search only works on transcribed recordings. If the recording has no transcript (no text bubble icon), search won't match that recording's spoken content.
+  </Accordion>
+  
+  <Accordion title="Player shows black screen">
+    The video file may be corrupted or moved. Right-click → Reveal in Finder to verify the file exists. If missing, delete the recording from Voom's library.
+  </Accordion>
+  
+  <Accordion title="Share via Link button is disabled">
+    You haven't configured the Cloudflare Worker settings yet. Go to Settings → Sharing and add your Worker URL and API secret.
+  </Accordion>
+</AccordionGroup>

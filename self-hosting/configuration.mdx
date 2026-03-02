@@ -1,0 +1,224 @@
+---
+title: App Configuration
+description: Configure the macOS app to use your Worker
+---
+
+Once your Worker is deployed, connect the Voom macOS app to your self-hosted infrastructure.
+
+## Settings UI
+
+<Steps>
+  <Step title="Open Settings">
+    Right-click the Voom menu bar icon → **Settings**
+  </Step>
+
+  <Step title="Paste Worker URL">
+    Enter your Worker URL in the **Share Server** field:
+
+    ```
+    https://voom-share.your-account.workers.dev
+    ```
+
+    Or if using a custom domain:
+
+    ```
+    https://share.yourdomain.com
+    ```
+
+    <Warning>
+      Do **not** include a trailing slash.
+    </Warning>
+  </Step>
+
+  <Step title="Paste API Secret">
+    Enter the secret you set with `wrangler secret put API_SECRET`.
+
+    This is stored in `UserDefaults` on your Mac — never transmitted except as a Bearer token in the `Authorization` header.
+  </Step>
+
+  <Step title="Test Connection">
+    The app validates the configuration by making a test API call. If successful, sharing is enabled.
+  </Step>
+</Steps>
+
+## Upload Flow
+
+When you click **Share** on a recording:
+
+### 1. Create Upload Entry
+
+```http
+POST /api/upload
+Authorization: Bearer YOUR_API_SECRET
+Content-Type: application/json
+
+{
+  "title": "Quick Demo",
+  "duration": 42.5,
+  "width": 2880,
+  "height": 1800,
+  "hasWebcam": true,
+  "fileSize": 15728640
+}
+```
+
+Worker generates a share code, inserts into D1, returns:
+
+```json
+{
+  "shareCode": "a3k9m2p4qr",
+  "uploadURL": "https://voom-share.your-account.workers.dev/api/upload-data/a3k9m2p4qr",
+  "shareURL": "https://voom-share.your-account.workers.dev/s/a3k9m2p4qr",
+  "expiresAt": "2026-04-01T12:34:56.789Z"
+}
+```
+
+### 2. Upload Video
+
+For files **< 100 MB**, single-part upload:
+
+```http
+PUT /api/upload-data/{shareCode}
+Authorization: Bearer YOUR_API_SECRET
+Content-Type: video/mp4
+
+[binary video data]
+```
+
+For files **> 100 MB**, multipart upload:
+
+```http
+POST /api/upload-multipart/{shareCode}
+```
+
+Returns `uploadId`, then upload parts:
+
+```http
+PUT /api/upload-part/{shareCode}/{uploadId}/{partNumber}
+```
+
+Finally, complete:
+
+```http
+POST /api/upload-complete/{shareCode}/{uploadId}
+Content-Type: application/json
+
+{
+  "parts": [
+    {"partNumber": 1, "etag": "abc123"},
+    {"partNumber": 2, "etag": "def456"}
+  ]
+}
+```
+
+### 3. Upload Thumbnail
+
+The app extracts a poster frame and uploads it:
+
+```http
+PUT /api/upload-thumbnail/{shareCode}
+Authorization: Bearer YOUR_API_SECRET
+Content-Type: image/jpeg
+
+[binary JPEG data]
+```
+
+Stored as `thumbnails/{shareCode}.jpg` in R2.
+
+### 4. Submit Metadata
+
+After on-device transcription, the app sends segments:
+
+```http
+POST /api/metadata/{shareCode}
+Authorization: Bearer YOUR_API_SECRET
+Content-Type: application/json
+
+{
+  "title": "Quick Demo",
+  "summary": "Showing the new export feature",
+  "segments": [
+    {"startTime": 0.0, "endTime": 2.5, "text": "Hey everyone, in this video..."},
+    {"startTime": 2.5, "endTime": 5.0, "text": "I'm going to show you how to..."}
+  ]
+}
+```
+
+Worker:
+
+1. Inserts segments into `transcript_segments` table
+2. Updates `upload_completed = 1`
+3. Share page becomes accessible
+
+## Renew Expiry
+
+The app can extend a recording's expiry by 30 days:
+
+```http
+POST /api/renew/{shareCode}
+Authorization: Bearer YOUR_API_SECRET
+```
+
+Response:
+
+```json
+{
+  "expiresAt": "2026-05-01T12:34:56.789Z"
+}
+```
+
+## Delete Recording
+
+To delete a shared recording:
+
+```http
+DELETE /api/delete/{shareCode}
+Authorization: Bearer YOUR_API_SECRET
+```
+
+Worker:
+
+1. Deletes `videos/{shareCode}.mp4` from R2
+2. Deletes `thumbnails/{shareCode}.jpg` from R2
+3. Deletes transcript segments from D1
+4. Deletes video row from D1
+
+## Configuration Schema
+
+The app stores settings in `UserDefaults`:
+
+```swift
+UserDefaults.standard.set(workerURL, forKey: "shareServerURL")
+UserDefaults.standard.set(apiSecret, forKey: "shareAPISecret")
+```
+
+Keys:
+
+- `shareServerURL` (String) — Worker base URL
+- `shareAPISecret` (String) — Bearer token
+
+## Troubleshooting
+
+### "Failed to connect to share server"
+
+- Verify Worker is deployed: `curl https://your-worker.workers.dev/`
+- Check API secret matches: `npx wrangler secret list`
+- Ensure URL has no trailing slash
+
+### "Upload failed"
+
+- Check Worker logs: `npx wrangler tail`
+- Verify R2 bucket exists: `npx wrangler r2 bucket list`
+- Check CORS headers if using custom domain
+
+### "Transcript not showing on share page"
+
+- Ensure `/api/metadata` call succeeded
+- Check D1 database: `npx wrangler d1 execute voom-share-db --command "SELECT * FROM transcript_segments LIMIT 5" --remote`
+- Verify `upload_completed = 1`: `npx wrangler d1 execute voom-share-db --command "SELECT * FROM videos WHERE share_code = 'abc123'" --remote`
+
+## Next Step
+
+<Card title="How the Share Page Works" icon="play" href="/self-hosting/share-page">
+  Deep dive into the HTML player and transcript UI
+</Card>

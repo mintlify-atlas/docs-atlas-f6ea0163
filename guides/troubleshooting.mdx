@@ -1,0 +1,350 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for Voom
+---
+
+## macOS Permissions
+
+Voom requires several macOS permissions to function. If recording fails or certain features don't work, check these permissions first.
+
+<AccordionGroup>
+  <Accordion title="Screen Recording Permission" icon="display">
+    **Required for**: Capturing screen content
+    
+    **Symptoms if missing**:
+    - Black screen in recordings
+    - "Screen recording permission denied" error
+    - Recording starts but shows no content
+    
+    **How to fix**:
+    1. Open **System Settings** > **Privacy & Security** > **Screen Recording**
+    2. Enable the toggle next to **Voom**
+    3. Restart the Voom app (quit from menu bar and relaunch)
+    
+    <Note>
+      macOS requires app restart after granting screen recording permission. The permission won't take effect until you relaunch.
+    </Note>
+  </Accordion>
+
+  <Accordion title="Camera Permission" icon="camera">
+    **Required for**: Picture-in-picture webcam overlay
+    
+    **Symptoms if missing**:
+    - Camera overlay shows black screen
+    - "Camera access denied" message
+    - Camera option disabled in UI
+    
+    **How to fix**:
+    1. Open **System Settings** > **Privacy & Security** > **Camera**
+    2. Enable the toggle next to **Voom**
+    3. Try recording again (no restart needed)
+  </Accordion>
+
+  <Accordion title="Microphone Permission" icon="microphone">
+    **Required for**: Recording microphone audio
+    
+    **Symptoms if missing**:
+    - Silent recordings (no mic audio)
+    - "Microphone access denied" error
+    - Mic option grayed out
+    
+    **How to fix**:
+    1. Open **System Settings** > **Privacy & Security** > **Microphone**
+    2. Enable the toggle next to **Voom**
+    3. Try recording again (no restart needed)
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  If Voom doesn't appear in the permission lists, try starting a recording first. macOS only adds apps to permission lists after they request access.
+</Warning>
+
+## Build Issues
+
+<AccordionGroup>
+  <Accordion title="Xcode Build Fails" icon="hammer">
+    **Common causes**:
+    - Wrong macOS SDK version
+    - Code signing issues
+    - Missing dependencies
+    
+    **Solutions**:
+    
+    1. **Check macOS version**: Voom requires macOS 15+ SDK. Ensure you have Xcode 16 or later.
+       ```bash
+       xcodebuild -version
+       ```
+    
+    2. **Clean build folder**:
+       ```bash
+       cd Voom
+       xcodebuild clean -scheme Voom
+       ```
+    
+    3. **Check code signing**: Open `Voom.xcodeproj` in Xcode:
+       - Go to **Signing & Capabilities** tab
+       - Ensure **Code Sign Identity** is set to "Apple Development"
+       - **Code Sign Style** should be "Automatic"
+       
+    4. **Rebuild**:
+       ```bash
+       cd Voom
+       xcodebuild -scheme Voom -configuration Debug build
+       ```
+  </Accordion>
+
+  <Accordion title="Code Signing Errors" icon="certificate">
+    **Error**: "Code signing failed" or "No signing certificate found"
+    
+    **Required**: Apple Development certificate (not self-signed)
+    
+    **How to fix**:
+    1. Open Xcode preferences > **Accounts**
+    2. Add your Apple ID if not already added
+    3. Select your team and click **Manage Certificates**
+    4. Ensure you have an **Apple Development** certificate
+    5. In the Voom project settings:
+       - Set **Team** to your development team
+       - Set **Code Sign Identity** to "Apple Development"
+       - Set **Code Sign Style** to "Automatic"
+  </Accordion>
+
+  <Accordion title="Stale Build Issues" icon="refresh">
+    **Symptom**: Changes don't appear after rebuild, or app crashes on launch
+    
+    **Cause**: macOS Launch Services may be launching old builds from `build/` instead of DerivedData
+    
+    **How to fix**:
+    1. Delete any builds in the `build/` directory:
+       ```bash
+       rm -rf Voom/build
+       ```
+    
+    2. Kill running app and relaunch from DerivedData:
+       ```bash
+       pkill -x Voom
+       sleep 1
+       open ~/Library/Developer/Xcode/DerivedData/Voom-*/Build/Products/Debug/Voom.app
+       ```
+    
+    <Tip>
+      Always run from DerivedData during development, not from custom build locations.
+    </Tip>
+  </Accordion>
+</AccordionGroup>
+
+## Transcription Issues
+
+<AccordionGroup>
+  <Accordion title="Transcription Fails or Hangs" icon="closed-captioning">
+    **Symptoms**:
+    - Transcription never completes
+    - "Transcription failed" error
+    - App becomes unresponsive during transcription
+    
+    **Common causes**:
+    
+    1. **Not running on Apple Silicon**: WhisperKit requires Apple Silicon (M1, M2, M3, etc.)
+       - Intel Macs are not supported for on-device transcription
+    
+    2. **Insufficient memory**: WhisperKit (distil-large-v3) requires adequate RAM
+       - Close other memory-intensive apps
+       - Try transcribing shorter recordings first
+    
+    3. **Model not downloaded**: First transcription downloads the WhisperKit model
+       - Ensure stable internet connection on first use
+       - Model is ~1.5GB, may take several minutes
+       - Subsequent transcriptions work offline
+  </Accordion>
+
+  <Accordion title="Transcription Quality Issues" icon="spell-check">
+    **Symptoms**: Inaccurate transcriptions, missing words, or garbled text
+    
+    **Causes and solutions**:
+    
+    - **Poor audio quality**: WhisperKit works best with clear audio
+      - Use external mic in quiet environment
+      - Speak clearly and at moderate pace
+      
+    - **Background noise**: Reduces accuracy
+      - Record in quiet space
+      - Use noise-canceling mic
+      
+    - **Non-English audio**: WhisperKit supports multiple languages but may need tuning
+      - Ensure language is supported by Whisper model
+      
+    - **Very long recordings**: Accuracy may degrade over time
+      - Consider breaking into shorter segments
+  </Accordion>
+
+  <Accordion title="Transcription Takes Too Long" icon="clock">
+    **Expected times** (on Apple Silicon):
+    - 5-minute recording: ~2-3 minutes to transcribe
+    - 30-minute recording: ~10-15 minutes to transcribe
+    
+    **If significantly slower**:
+    - Check Activity Monitor for CPU/memory usage
+    - Ensure Mac isn't thermal throttling (check fan speed)
+    - Close other intensive apps
+    - Try recording at lower resolution to reduce processing
+  </Accordion>
+</AccordionGroup>
+
+## Recording Issues
+
+<AccordionGroup>
+  <Accordion title="Recording Won't Start" icon="circle-stop">
+    **Check these items in order**:
+    
+    1. **Permissions granted**: See [macOS Permissions](#macos-permissions) above
+    2. **Display selected**: Ensure you've selected a display to record
+    3. **Disk space**: Ensure sufficient free space (recordings are ~50MB/min in HEVC)
+    4. **No other recorders**: Quit other screen recording apps (QuickTime, OBS, etc.)
+  </Accordion>
+
+  <Accordion title="Camera Overlay Not Showing" icon="video">
+    **Troubleshooting**:
+    
+    1. **Camera permission**: Check System Settings > Privacy & Security > Camera
+    2. **Camera in use**: Ensure no other app is using the camera (Zoom, FaceTime, etc.)
+    3. **Camera connected**: For external webcams, check USB connection
+    4. **Camera selected**: Voom should auto-select default camera, but verify in settings
+  </Accordion>
+
+  <Accordion title="No System Audio in Recording" icon="volume">
+    **Note**: macOS system audio capture requires specific permissions
+    
+    **Check**:
+    1. System audio source is selected in Voom recording options
+    2. Applications are actually playing audio during recording
+    3. Volume levels aren't muted in the app you're recording
+    
+    **Limitation**: Some DRM-protected content (Netflix, Apple TV+) blocks system audio capture at the OS level.
+  </Accordion>
+
+  <Accordion title="Video File Corrupted or Won't Play" icon="file-video">
+    **Symptoms**: Recording completes but video won't play
+    
+    **Possible causes**:
+    
+    1. **Recording interrupted**: Force-quit or crash during recording
+       - HEVC files need proper finalization
+       - Unfortunately, corrupted recordings usually can't be recovered
+    
+    2. **Disk full**: Recording filled available disk space
+       - Always ensure adequate free space before long recordings
+       - Monitor disk space during long sessions
+    
+    3. **Codec issues**: Player doesn't support HEVC
+       - Use QuickTime Player or VLC (both support HEVC)
+       - Voom uses hardware HEVC encoding via VideoToolbox
+  </Accordion>
+</AccordionGroup>
+
+## Cloud Sharing Issues
+
+<AccordionGroup>
+  <Accordion title="Upload Fails" icon="cloud-arrow-up">
+    **Check these items**:
+    
+    1. **Worker URL configured**: Settings must have valid Worker URL
+    2. **API secret correct**: Verify API secret matches what you set via `wrangler secret put`
+    3. **Internet connection**: Uploads require active network
+    4. **Cloudflare services running**: Verify Worker is deployed and R2 bucket exists
+    5. **R2 bucket accessible**: Check Cloudflare dashboard for R2 bucket status
+    
+    **Test Worker**:
+    ```bash
+    curl https://your-worker.workers.dev
+    ```
+    Should return a response (not an error)
+  </Accordion>
+
+  <Accordion title="Share Page Shows Error" icon="browser">
+    **Symptoms**: Share link loads but shows error message
+    
+    **Debugging**:
+    
+    1. **Check D1 database**: Ensure `voom-share-db` is created and schema applied
+       ```bash
+       cd voom-share
+       npx wrangler d1 execute voom-share-db --command "SELECT * FROM videos LIMIT 1;" --remote
+       ```
+    
+    2. **Verify R2 bucket**: Check video file exists in R2
+       ```bash
+       npx wrangler r2 object get voom-videos <video-id>.mp4
+       ```
+    
+    3. **Check Worker logs**: View real-time logs for errors
+       ```bash
+       npx wrangler tail
+       ```
+  </Accordion>
+
+  <Accordion title="Share Link Expired" icon="link-slash">
+    **Default**: Links expire after 30 days
+    
+    **How it works**:
+    - A daily cron job deletes videos older than 30 days
+    - Video and metadata are permanently removed from R2 and D1
+    
+    **To modify expiry time**:
+    Edit `voom-share/src/index.ts` and change the expiry logic in the cron handler, then redeploy:
+    ```bash
+    cd voom-share
+    npx wrangler deploy
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## App Behavior Issues
+
+<AccordionGroup>
+  <Accordion title="Menu Bar Icon Missing" icon="bars">
+    **Voom runs as a menu bar app** (LSUIElement = true)
+    
+    **If icon doesn't appear**:
+    1. Check menu bar isn't hidden (move cursor to top of screen)
+    2. Menu bar may be crowded — try hiding other menu bar apps
+    3. Quit and relaunch Voom
+    4. Check Activity Monitor to verify Voom is running
+  </Accordion>
+
+  <Accordion title="App Won't Launch" icon="triangle-exclamation">
+    **Check Console.app for crash logs**:
+    
+    1. Open **Console.app**
+    2. Search for "Voom"
+    3. Look for crash reports or error messages
+    
+    **Common fixes**:
+    - Rebuild from source (see [Build Issues](#build-issues))
+    - Delete app preferences:
+      ```bash
+      defaults delete com.yourteam.Voom
+      ```
+    - Check code signing certificate hasn't expired
+  </Accordion>
+</AccordionGroup>
+
+## Getting Help
+
+<CardGroup cols={2}>
+  <Card title="Check Logs" icon="file-lines">
+    Use Console.app to view Voom's logs. Filter by process name "Voom" to see debug output.
+  </Card>
+  
+  <Card title="GitHub Issues" icon="github">
+    Report bugs or request features on the [Voom GitHub repository](https://github.com/yourusername/voom/issues).
+  </Card>
+</CardGroup>
+
+<Note>
+  When reporting issues, include:
+  - macOS version
+  - Mac model (Intel vs Apple Silicon)
+  - Voom version
+  - Steps to reproduce
+  - Relevant logs from Console.app
+</Note>

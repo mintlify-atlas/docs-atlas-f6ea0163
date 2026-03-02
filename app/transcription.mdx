@@ -1,0 +1,237 @@
+---
+title: Transcription with WhisperKit
+description: On-device speech-to-text transcription using WhisperKit's distil-large-v3 model
+---
+
+Voom transcribes your recordings entirely on-device using WhisperKit, an Apple Silicon-optimized implementation of OpenAI's Whisper model.
+
+## How Transcription Works
+
+Transcription runs locally on your Mac:
+
+- **Model:** WhisperKit distil-large-v3 (distilled version of Whisper Large v3)
+- **Speed:** Approximately 1-3x realtime on Apple Silicon
+- **Privacy:** Audio never leaves your machine—fully offline
+- **Languages:** Supports 99+ languages (auto-detected)
+
+<Note>
+  The distil-large-v3 model is downloaded automatically on first use. Download size is approximately 1.5 GB.
+</Note>
+
+## Automatic Transcription
+
+By default, Voom transcribes recordings with audio immediately after capture:
+
+<Steps>
+  <Step title="Recording completes">
+    When you stop recording, Voom saves the video file
+  </Step>
+  
+  <Step title="WhisperKit loads">
+    The transcription model loads (takes ~5-10 seconds on first run)
+  </Step>
+  
+  <Step title="Audio extraction">
+    Voom extracts audio from the video and converts it to 16kHz mono WAV (WhisperKit's required format)
+  </Step>
+  
+  <Step title="Transcription runs">
+    WhisperKit processes the audio and returns timestamped segments
+  </Step>
+  
+  <Step title="AI title & summary (optional)">
+    If Apple Intelligence is available, Voom generates a descriptive title and summary from the transcript
+  </Step>
+</Steps>
+
+<Tip>
+  Auto-transcription runs in the background. You can continue using Voom while transcription is in progress.
+</Tip>
+
+### Disabling Auto-Transcription
+
+To disable automatic transcription:
+
+1. Open **Settings** from the menu bar
+2. Go to **General** tab
+3. Toggle off **"Automatically transcribe recordings"**
+
+You can still manually transcribe recordings later from the library.
+
+## Manual Transcription
+
+To transcribe a recording manually:
+
+<Steps>
+  <Step title="Open the recording">
+    Select the recording in your library to open the player view
+  </Step>
+  
+  <Step title="Click Transcribe">
+    Click the **Transcribe** button (text bubble icon) in the action bar
+  </Step>
+  
+  <Step title="Wait for completion">
+    A progress indicator shows transcription status. This takes 1-5 minutes for typical recordings.
+  </Step>
+</Steps>
+
+## Transcript Features
+
+### Timestamped Segments
+
+Each transcript segment includes:
+
+- **Start time** — When the speaker begins talking (in seconds)
+- **End time** — When the segment ends
+- **Text** — The transcribed speech
+
+Segments are displayed in a synchronized list alongside the video player.
+
+### Synced Playback
+
+The transcript automatically highlights the current segment during playback:
+
+- **Active highlighting** — Current segment highlights as the video plays
+- **Click to seek** — Click any segment to jump to that timestamp
+- **Live captions** — Toggle captions to see text overlaid on the video
+
+<Tip>
+  Use captions when sharing your screen to make recordings more accessible.
+</Tip>
+
+### Editing Transcripts
+
+You can correct transcription errors:
+
+1. **Double-click** any segment to edit its text
+2. Type your correction
+3. Press **Enter** to save
+
+Edits are saved immediately and sync with the shared link (if you've already uploaded).
+
+### Searching Transcripts
+
+Use the search bar above the transcript to find specific words or phrases:
+
+- Type in the search field to filter segments
+- Matching segments are highlighted
+- Click a result to jump to that moment in the video
+
+<Note>
+  Search also works in the library view—you can search across all your recordings' transcripts at once.
+</Note>
+
+## AI-Generated Metadata
+
+### Title Generation
+
+If Apple Intelligence is available on your Mac, Voom automatically generates a descriptive title from the transcript:
+
+- Replaces the default filename-based title
+- Summarizes the recording's content in 3-8 words
+- Can be manually edited by clicking the title field
+
+### Summary Generation
+
+Voom also generates a brief summary:
+
+- 1-3 sentence overview of the recording
+- Appears in the player view below the video
+- Editable via the summary text area
+
+<Warning>
+  AI title and summary generation requires Apple Silicon (M1 or newer) with macOS Sequoia 15.1+ and Apple Intelligence enabled. If unavailable, recordings keep their filename-based title.
+</Warning>
+
+### Regenerating Metadata
+
+To regenerate the title and summary:
+
+1. Right-click the recording in the library
+2. Select **"Regenerate Title & Summary"**
+3. Voom re-analyzes the transcript and updates both fields
+
+## Audio Requirements
+
+### Supported Sources
+
+Transcription works with:
+
+- Recordings with **microphone audio** only
+- Recordings with **system audio** only
+- Recordings with **both sources** (mixed into one track)
+
+### Unsupported Cases
+
+<Warning>
+  Transcription requires an audio track. It will not run on:
+</Warning>
+
+- Screen-only recordings (no mic, no system audio)
+- Recordings where the audio track is missing or corrupted
+
+## Performance
+
+### Transcription Speed
+
+On Apple Silicon Macs:
+
+- **M1/M2:** ~1-2x realtime (5-minute recording = 2-5 minutes to transcribe)
+- **M3/M4:** ~2-3x realtime (5-minute recording = 1.5-2.5 minutes)
+
+<Tip>
+  Transcription is CPU/GPU intensive. Close other apps if transcription is slow or your Mac is thermal throttling.
+</Tip>
+
+### First-Run Setup
+
+The first time you transcribe:
+
+1. WhisperKit downloads the distil-large-v3 model (~1.5 GB)
+2. Model is cached in `~/Library/Caches/huggingface/` for future use
+3. Subsequent transcriptions skip the download and start immediately
+
+## Accuracy Tips
+
+To improve transcription quality:
+
+- **Use a good microphone** — Built-in Mac mics work, but external USB/XLR mics are clearer
+- **Reduce background noise** — Close windows, mute notifications, avoid noisy environments
+- **Speak clearly** — Pause between thoughts to create natural segment breaks
+- **Avoid music/overlapping voices** — Whisper struggles with multiple simultaneous speakers
+
+## Transcript Export
+
+Transcripts are included when you:
+
+- **Share via link** — Uploaded to Cloudflare R2 as JSON, displayed on the share page with synced highlighting
+- **Export the recording** — Stored in the `.mov` file's metadata (accessible via Voom)
+
+<Note>
+  There's no dedicated "export transcript" feature yet. Copy/paste from the transcript view if you need plain text.
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Transcription fails with 'No audio track found'">
+    This recording has no audio. Enable **System Audio** or **Microphone** when recording to get transcripts.
+  </Accordion>
+  
+  <Accordion title="Transcription is very slow">
+    Check Activity Monitor for CPU/GPU usage. Close other intensive apps. On Intel Macs, WhisperKit may not work at all (requires Apple Silicon).
+  </Accordion>
+  
+  <Accordion title="Transcript is gibberish or incorrect language">
+    WhisperKit auto-detects language. If it guesses wrong, the transcript may be nonsense. Currently no manual language override—this is a known limitation.
+  </Accordion>
+  
+  <Accordion title="Model download fails">
+    Check your internet connection. WhisperKit downloads from Hugging Face. If blocked (corporate firewall), transcription won't work. Manual model download is not yet supported.
+  </Accordion>
+  
+  <Accordion title="No AI title/summary generated">
+    Apple Intelligence requires macOS 15.1+ with Apple Intelligence enabled in System Settings. Only M1/M2/M3/M4 Macs in supported regions can use this feature.
+  </Accordion>
+</AccordionGroup>

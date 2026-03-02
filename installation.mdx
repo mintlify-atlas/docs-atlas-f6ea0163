@@ -1,0 +1,406 @@
+---
+title: Installation
+description: Complete installation guide for Voom app and cloud sharing infrastructure
+---
+
+## macOS app installation
+
+### System requirements
+
+<Card title="Requirements" icon="laptop">
+  - **macOS**: 15.0 (Sequoia) or later
+  - **Architecture**: Apple Silicon (M1/M2/M3/M4)
+  - **Storage**: 2GB free (app + WhisperKit model)
+  - **RAM**: 8GB minimum (16GB recommended for transcription)
+</Card>
+
+<Warning>
+  Intel Macs are not currently supported. Voom uses ScreenCaptureKit and on-device ML features that require Apple Silicon.
+</Warning>
+
+### Download and install
+
+<Steps>
+  <Step title="Download the DMG">
+    Download the latest release from [GitHub releases](https://github.com/your-org/voom/releases).
+    
+    ```bash
+    # Or download via curl
+    curl -L -o Voom.dmg https://github.com/your-org/voom/releases/latest/download/Voom.dmg
+    ```
+  </Step>
+  
+  <Step title="Mount and install">
+    Open the DMG file and drag **Voom.app** to the Applications folder shortcut.
+    
+    <img src="/images/dmg-install.png" alt="Voom DMG installer" className="rounded-lg" />
+  </Step>
+  
+  <Step title="Launch Voom">
+    Open Voom from Applications or Spotlight:
+    
+    ```bash
+    open -a Voom
+    ```
+    
+    Voom runs as a menu bar app — look for the icon in your menu bar.
+  </Step>
+  
+  <Step title="Grant permissions">
+    On first launch, Voom requests permissions for:
+    
+    - Screen Recording
+    - Microphone
+    - Camera (optional)
+    
+    Click **Allow** for each prompt, then restart Voom.
+  </Step>
+</Steps>
+
+### Build from source
+
+If you prefer to build Voom yourself:
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/your-org/voom.git
+    cd voom
+    ```
+  </Step>
+  
+  <Step title="Open in Xcode">
+    ```bash
+    open Voom/Voom.xcodeproj
+    ```
+    
+    <Note>
+      Requires Xcode 16.0 or later for Swift 6 support.
+    </Note>
+  </Step>
+  
+  <Step title="Configure code signing">
+    Select the Voom target in Xcode, then:
+    
+    - **Signing & Capabilities** tab
+    - **Team**: Select your Apple Developer team
+    - **Signing Certificate**: Apple Development
+  </Step>
+  
+  <Step title="Build and run">
+    Press **⌘R** to build and run, or build from the command line:
+    
+    ```bash
+    cd Voom
+    xcodebuild -scheme Voom -configuration Release build
+    ```
+    
+    The built app is located at:
+    
+    ```
+    ~/Library/Developer/Xcode/DerivedData/Voom-*/Build/Products/Release/Voom.app
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  Never use a self-signed certificate. Voom must be signed with an Apple Development certificate or macOS will block screen recording permissions.
+</Warning>
+
+## Cloud sharing setup
+
+Cloud sharing is entirely optional. If you want to share recordings via link, deploy the Cloudflare Worker to your own account.
+
+### Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="Cloudflare account" icon="cloud">
+    Free tier includes:
+    - 10GB R2 storage
+    - 100,000 Worker requests/day
+    - Unlimited D1 reads
+  </Card>
+  <Card title="Node.js & npm" icon="node">
+    Required for deploying the Worker:
+    - Node.js 18+
+    - npm or pnpm
+  </Card>
+</CardGroup>
+
+### Cost estimate
+
+<Note>
+  **~$0.35/month** for 2-3 videos/day:
+  
+  - R2 storage: $0.015/GB/month
+  - R2 operations: Negligible (free tier)
+  - Workers: Free (under 100k req/day)
+  - D1: Free (under 5M rows)
+</Note>
+
+### Deployment steps
+
+<Steps>
+  <Step title="Navigate to worker directory">
+    ```bash
+    cd voom-share
+    ```
+  </Step>
+  
+  <Step title="Install dependencies">
+    ```bash
+    npm install
+    ```
+  </Step>
+  
+  <Step title="Authenticate with Cloudflare">
+    ```bash
+    npx wrangler login
+    ```
+    
+    This opens your browser to authorize the Wrangler CLI.
+  </Step>
+  
+  <Step title="Create R2 bucket">
+    ```bash
+    npx wrangler r2 bucket create voom-videos
+    ```
+    
+    This bucket stores uploaded video files.
+  </Step>
+  
+  <Step title="Create D1 database">
+    ```bash
+    npx wrangler d1 create voom-share-db
+    ```
+    
+    Copy the `database_id` from the output:
+    
+    ```
+    ✅ Successfully created DB 'voom-share-db'
+    
+    [[d1_databases]]
+    binding = "DB"
+    database_name = "voom-share-db"
+    database_id = "abc123-def456-ghi789"
+    ```
+  </Step>
+  
+  <Step title="Update wrangler.toml">
+    Edit `wrangler.toml` and paste your `database_id`:
+    
+    ```toml wrangler.toml
+    [[d1_databases]]
+    binding = "DB"
+    database_name = "voom-share-db"
+    database_id = "abc123-def456-ghi789"  # Your ID here
+    ```
+  </Step>
+  
+  <Step title="Initialize database schema">
+    ```bash
+    npx wrangler d1 execute voom-share-db --file=./schema.sql --remote
+    ```
+    
+    This creates the `videos` table for tracking shares.
+  </Step>
+  
+  <Step title="Set API secret">
+    ```bash
+    npx wrangler secret put API_SECRET
+    ```
+    
+    Enter a strong random secret (e.g., 32-character random string). This authenticates upload requests from your Voom app.
+    
+    <Warning>
+      Keep this secret private. Anyone with it can upload videos to your R2 bucket.
+    </Warning>
+  </Step>
+  
+  <Step title="Deploy the Worker">
+    ```bash
+    npx wrangler deploy
+    ```
+    
+    After deployment, you'll see your Worker URL:
+    
+    ```
+    Published voom-share (1.23 sec)
+      https://voom-share.your-username.workers.dev
+    ```
+  </Step>
+</Steps>
+
+### Configure Voom app
+
+Connect your Voom app to your deployed Worker:
+
+<Steps>
+  <Step title="Open Voom settings">
+    Click the menu bar icon → **Settings**.
+  </Step>
+  
+  <Step title="Enter Worker URL">
+    In the **Cloud Sharing** section:
+    
+    - **Worker URL**: `https://voom-share.your-username.workers.dev`
+    - **API Secret**: The secret you created with `wrangler secret put`
+  </Step>
+  
+  <Step title="Test the connection">
+    Record a short test video, then click **Share** in the library.
+    
+    If configured correctly, you'll get a shareable link like:
+    
+    ```
+    https://voom-share.your-username.workers.dev/v/abc123
+    ```
+  </Step>
+</Steps>
+
+## Update and maintenance
+
+### Update the macOS app
+
+<Steps>
+  <Step title="Check for updates">
+    Voom doesn't auto-update. Check the [releases page](https://github.com/your-org/voom/releases) for new versions.
+  </Step>
+  
+  <Step title="Download and replace">
+    Download the new DMG and drag the updated Voom.app to Applications, replacing the old version.
+    
+    Your recordings and settings are preserved (stored in `~/Library/Application Support/Voom`).
+  </Step>
+</Steps>
+
+### Update the Cloudflare Worker
+
+<Steps>
+  <Step title="Pull latest changes">
+    ```bash
+    cd voom-share
+    git pull origin main
+    npm install
+    ```
+  </Step>
+  
+  <Step title="Run migrations (if any)">
+    Check the release notes for database migrations:
+    
+    ```bash
+    npx wrangler d1 execute voom-share-db --file=./migrations/001_new_schema.sql --remote
+    ```
+  </Step>
+  
+  <Step title="Deploy update">
+    ```bash
+    npx wrangler deploy
+    ```
+  </Step>
+</Steps>
+
+### Automatic cleanup
+
+The Worker includes a daily cron job that deletes videos older than 30 days:
+
+```toml wrangler.toml
+[triggers]
+crons = ["0 2 * * *"]  # 2 AM UTC daily
+```
+
+To change the expiry period, edit `src/index.ts`:
+
+```typescript
+const EXPIRY_DAYS = 30;  // Change to your preferred value
+```
+
+## Uninstall
+
+### Remove the macOS app
+
+<Steps>
+  <Step title="Quit Voom">
+    Click the menu bar icon → **Quit Voom**.
+  </Step>
+  
+  <Step title="Delete the app">
+    ```bash
+    rm -rf /Applications/Voom.app
+    ```
+  </Step>
+  
+  <Step title="Remove app data (optional)">
+    Delete recordings and settings:
+    
+    ```bash
+    rm -rf ~/Library/Application\ Support/Voom
+    rm -rf ~/Library/Preferences/com.voom.Voom.plist
+    ```
+    
+    <Warning>
+      This deletes all your recordings permanently.
+    </Warning>
+  </Step>
+</Steps>
+
+### Remove cloud infrastructure
+
+<Steps>
+  <Step title="Delete the Worker">
+    ```bash
+    npx wrangler delete voom-share
+    ```
+  </Step>
+  
+  <Step title="Delete R2 bucket">
+    First, empty the bucket:
+    
+    ```bash
+    npx wrangler r2 bucket delete voom-videos
+    ```
+  </Step>
+  
+  <Step title="Delete D1 database">
+    ```bash
+    npx wrangler d1 delete voom-share-db
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Worker deployment fails">
+    Check:
+    
+    1. You're logged in: `npx wrangler whoami`
+    2. `wrangler.toml` has the correct `database_id`
+    3. You have permission to create Workers in your Cloudflare account
+  </Accordion>
+  
+  <Accordion title="Upload fails with 401 Unauthorized">
+    Your API secret doesn't match. Make sure:
+    
+    1. The secret in Voom Settings matches the one set via `wrangler secret put`
+    2. You redeployed the Worker after setting the secret
+  </Accordion>
+  
+  <Accordion title="Share link shows 404">
+    The video may have expired (30-day default) or was manually deleted.
+    
+    Check your R2 bucket:
+    
+    ```bash
+    npx wrangler r2 object list voom-videos
+    ```
+  </Accordion>
+  
+  <Accordion title="Xcode build fails">
+    Common issues:
+    
+    - **Code signing error**: Set Team in Signing & Capabilities
+    - **Swift version**: Requires Xcode 16.0+ for Swift 6
+    - **Deployment target**: Must be macOS 15.0 or later
+  </Accordion>
+</AccordionGroup>

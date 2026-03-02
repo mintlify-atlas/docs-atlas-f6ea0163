@@ -1,0 +1,303 @@
+---
+title: Share Page
+description: How the HTML player, captions, and transcript work
+---
+
+Each shared recording gets a minimal, dark-themed HTML page with a custom video player.
+
+## URL Structure
+
+```
+https://voom-share.your-account.workers.dev/s/{shareCode}
+```
+
+The Worker's `handleSharePage()` function:
+
+1. Queries D1 for video metadata
+2. Checks `upload_completed = 1` and `expires_at > now()`
+3. Fetches transcript segments from D1
+4. Increments `view_count`
+5. Returns HTML with embedded data and player
+
+## HTML Generation
+
+The page is server-rendered (no framework, just template strings):
+
+```javascript
+function sharePageHTML(video, segments, shareCode, viewCount) {
+  const segmentsJSON = JSON.stringify(
+    segments.map(s => ({ start: s.start_time, end: s.end_time, text: s.text }))
+  );
+  
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>${escapeHTML(video.title)} — Voom</title>
+  <meta property="og:image" content="/og/${shareCode}">
+  ...
+</head>
+<body>
+  <script>
+    const segs = ${segmentsJSON};
+    // Player logic...
+  </script>
+</body>
+</html>`;
+}
+```
+
+All CSS and JavaScript are inlined (no external dependencies).
+
+## Video Player Features
+
+### Range Request Streaming
+
+The `/v/{shareCode}` endpoint supports HTTP range requests:
+
+```javascript
+const rangeHeader = request.headers.get('Range');
+if (rangeHeader) {
+  const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+  const start = parseInt(match[1], 10);
+  const end = match[2] ? parseInt(match[2], 10) : undefined;
+  
+  object = await env.VIDEOS_BUCKET.get(key, {
+    range: { offset: start, length: end !== undefined ? end - start + 1 : undefined },
+  });
+  
+  return new Response(object.body, {
+    status: 206,
+    headers: {
+      'Content-Type': 'video/mp4',
+      'Content-Range': `bytes ${start}-${actualEnd}/${totalSize}`,
+      'Accept-Ranges': 'bytes',
+    },
+  });
+}
+```
+
+This allows:
+
+- Seeking without downloading the entire file
+- Smooth scrubbing on slow connections
+- Browser-native buffering
+
+### Custom Controls
+
+The player UI is built with vanilla JavaScript:
+
+- **Play/Pause** — Spacebar, K, or click anywhere on video
+- **Seek** — Arrow keys (±5 sec), click/drag seekbar
+- **Volume** — M to mute, hover volume button to reveal slider
+- **Speed** — 0.5x, 1x, 1.25x, 1.5x, 2x
+- **Fullscreen** — F key or button
+- **Captions** — C key or CC button
+
+All controls auto-hide after 2 seconds of inactivity during playback.
+
+## Live Captions
+
+The `caption-overlay` syncs with playback:
+
+```javascript
+vid.addEventListener('timeupdate', () => {
+  const t = vid.currentTime;
+  
+  segs.forEach((s, i) => {
+    const active = t >= s.start && t < s.end;
+    if (active && ccOn) {
+      capSpan.textContent = s.text;
+      cap.classList.remove('hidden');
+    }
+  });
+});
+```
+
+Captions appear in the bottom center with a blurred background:
+
+```css
+.caption-overlay span {
+  padding: 6px 16px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(16px);
+}
+```
+
+## Interactive Transcript
+
+Each segment is clickable:
+
+```html
+<div class="transcript-row" data-start="2.5">
+  <span class="timestamp">0:02</span>
+  <span class="text">I'm going to show you how to...</span>
+  <button class="copy-ts" data-time="2.5">🔗</button>
+</div>
+```
+
+Clicking a row seeks to that timestamp:
+
+```javascript
+rows.forEach((el) => {
+  el.addEventListener('click', (e) => {
+    if (e.target.closest('.copy-ts')) return;
+    const t = parseFloat(el.dataset.start);
+    vid.currentTime = t;
+    vid.play();
+  });
+});
+```
+
+The active segment is highlighted:
+
+```javascript
+vid.addEventListener('timeupdate', () => {
+  rows.forEach((el, i) => {
+    const s = segs[i];
+    const active = t >= s.start && t < s.end;
+    el.classList.toggle('active', active);
+    if (active) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  });
+});
+```
+
+## Timestamp Linking
+
+Each transcript row has a copy button that generates a deep link:
+
+```javascript
+document.querySelectorAll('.copy-ts').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const t = Math.floor(parseFloat(btn.dataset.time));
+    const url = window.location.origin + window.location.pathname + '?t=' + t;
+    navigator.clipboard.writeText(url);
+  });
+});
+```
+
+The player reads the `?t=` param on load:
+
+```javascript
+vid.addEventListener('loadedmetadata', () => {
+  const params = new URLSearchParams(window.location.search);
+  const t = parseFloat(params.get('t'));
+  if (t > 0 && t < vid.duration) {
+    vid.currentTime = t;
+  }
+});
+```
+
+## Open Graph Metadata
+
+The page includes rich preview tags:
+
+```html
+<meta property="og:title" content="Quick Demo">
+<meta property="og:type" content="video.other">
+<meta property="og:video" content="/v/{shareCode}">
+<meta property="og:video:type" content="video/mp4">
+<meta property="og:video:width" content="2880">
+<meta property="og:video:height" content="1800">
+<meta property="og:image" content="/og/{shareCode}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+```
+
+The `/og/{shareCode}` endpoint serves:
+
+1. **Uploaded thumbnail** (if available): `thumbnails/{shareCode}.jpg`
+2. **Fallback SVG** with video title, duration, and metadata
+
+## Poster Image
+
+The video element uses the uploaded thumbnail:
+
+```html
+<video poster="/thumb/{shareCode}">
+  <source src="/v/{shareCode}" type="video/mp4">
+</video>
+```
+
+The `/thumb/{shareCode}` endpoint returns `thumbnails/{shareCode}.jpg` from R2.
+
+## Expired Page
+
+If `expires_at < now()` or video doesn't exist:
+
+```javascript
+function expiredPageHTML() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Recording Not Found — Voom</title>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🔗</div>
+    <h1>This recording has expired</h1>
+    <p>The link you followed is no longer available. Shared recordings expire after 30 days.</p>
+  </div>
+</body>
+</html>`;
+}
+```
+
+## View Count
+
+Each page load increments the counter:
+
+```javascript
+await env.DB.prepare('UPDATE videos SET view_count = view_count + 1 WHERE id = ?')
+  .bind(video.id)
+  .run();
+```
+
+Displayed in metadata:
+
+```html
+<span>${viewCount === 1 ? '1 view' : `${viewCount.toLocaleString()} views`}</span>
+```
+
+## Styling
+
+The page uses CSS custom properties:
+
+```css
+:root {
+  --bg: #000;
+  --text-main: #e5e5e5;
+  --text-muted: #888;
+  --accent: #fff;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "SF Mono", Monaco, ui-monospace, monospace;
+}
+```
+
+All measurements use `px` for precision. No frameworks, no build step.
+
+## Performance
+
+- **HTML size**: ~35 KB gzipped (including all CSS/JS)
+- **First paint**: < 200ms (no external requests)
+- **Video start**: Depends on R2 latency (~100-300ms globally)
+
+## Customization
+
+To modify the share page:
+
+1. Edit the `sharePageHTML()` function in `src/index.js`
+2. Update CSS in the `<style>` block
+3. Modify player logic in the `<script>` block
+4. Deploy: `npx wrangler deploy`
+
+No build step required — it's just a JavaScript template string.
+
+## Back to Overview
+
+<Card title="Self-Hosting Overview" icon="book" href="/self-hosting/overview">
+  Return to architecture overview
+</Card>

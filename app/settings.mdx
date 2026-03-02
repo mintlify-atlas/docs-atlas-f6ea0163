@@ -1,0 +1,253 @@
+---
+title: App Settings & Configuration
+description: Configure transcription, keyboard shortcuts, and cloud sharing in Voom
+---
+
+Access settings from the menu bar: **Voom → Settings** or right-click the menu bar icon → **Settings**.
+
+## General Tab
+
+### Automatic Transcription
+
+**Setting:** "Automatically transcribe recordings"
+
+- **Default:** Enabled
+- **Behavior:** When enabled, recordings with audio (system or mic) are transcribed immediately after recording stops using WhisperKit
+- **Model:** distil-large-v3 (downloaded automatically on first use, ~1.5 GB)
+- **Privacy:** Transcription runs entirely on-device; audio never leaves your Mac
+
+<Tip>
+  Keep this enabled for the best experience. Transcripts unlock powerful search, synced captions, and AI-generated titles.
+</Tip>
+
+**When to disable:**
+
+- You don't need transcripts for most recordings
+- Your Mac is older/slower and transcription takes too long
+- You want to manually trigger transcription only for select recordings
+
+<Note>
+  You can always manually transcribe individual recordings later from the library, even if auto-transcribe is disabled.
+</Note>
+
+### Global Keyboard Shortcut
+
+**Setting:** "Global keyboard shortcut"
+
+- **Default:** Enabled
+- **Shortcut:** `Cmd+Shift+R`
+- **Behavior:** Start/stop recording from anywhere, even when Voom is hidden or another app is active
+
+<Warning>
+  If another app uses `Cmd+Shift+R`, it may conflict. Disable this setting if you experience issues.
+</Warning>
+
+**Use cases:**
+
+- **Instant recording** — Hit the shortcut mid-presentation to start capturing
+- **Quick stop** — End recording without switching back to Voom
+- **Workflow integration** — Bind to Stream Deck or other automation tools
+
+**When to disable:**
+
+- You prefer manual control from the menu bar
+- Keyboard shortcut conflicts with another app
+- You accidentally trigger recordings
+
+## Sharing Tab
+
+Configure cloud sharing via your self-hosted Cloudflare Worker.
+
+### Cloudflare Worker URL
+
+**Setting:** "Worker URL"
+
+- **Format:** `https://voom-share.example.workers.dev`
+- **Required for:** Uploading recordings and generating shareable links
+- **How to get:** Deploy the Cloudflare Worker from the `voom-share/` directory (see [Cloud Sharing Setup](/cloud/setup))
+
+<Steps>
+  <Step title="Deploy the Worker">
+    Follow the [Cloud Sharing Setup guide](/cloud/setup) to deploy `voom-share` to Cloudflare
+  </Step>
+  
+  <Step title="Copy the Worker URL">
+    After deployment, Wrangler outputs your Worker's URL (e.g., `https://voom-share.your-subdomain.workers.dev`)
+  </Step>
+  
+  <Step title="Paste into Voom">
+    Open Settings → Sharing and paste the URL into the "Worker URL" field
+  </Step>
+</Steps>
+
+<Note>
+  The Worker URL must be publicly accessible over HTTPS. Voom uses this endpoint to upload videos to Cloudflare R2.
+</Note>
+
+### API Secret
+
+**Setting:** "API Secret"
+
+- **Format:** Any secure random string (e.g., `openssl rand -base64 32`)
+- **Required for:** Authenticating upload requests to your Worker
+- **Security:** Stored in macOS Keychain (via UserDefaults, but marked secure)
+
+<Steps>
+  <Step title="Generate a secret">
+    Run `openssl rand -base64 32` in Terminal to generate a secure random string
+  </Step>
+  
+  <Step title="Add to Worker">
+    Deploy the secret to your Worker with `npx wrangler secret put API_SECRET` and paste the generated string
+  </Step>
+  
+  <Step title="Add to Voom">
+    Paste the same secret into Settings → Sharing → "API Secret"
+  </Step>
+</Steps>
+
+<Warning>
+  Never share your API secret publicly or commit it to version control. Anyone with this secret can upload videos to your Cloudflare R2 bucket.
+</Warning>
+
+### Test Connection
+
+**Button:** "Test Connection"
+
+- **Purpose:** Verifies that Voom can reach your Worker with the provided credentials
+- **How it works:** Sends a GET request to the Worker URL with the `Authorization: Bearer <API_SECRET>` header
+- **Expected response:** HTTP 200 if credentials are valid
+
+**Status indicators:**
+
+- **Idle** — No test run yet
+- **Testing** — Request in progress (spinner)
+- **Connected** — Green checkmark, credentials are valid
+- **Failed** — Red X with error message (e.g., "HTTP 401" or "Invalid URL")
+
+<Tip>
+  Always test your connection after updating the Worker URL or API secret to catch configuration errors early.
+</Tip>
+
+**Common errors:**
+
+| Error | Meaning | Fix |
+|-------|---------|-----|
+| "Invalid URL" | URL format is incorrect | Ensure URL starts with `https://` and has no trailing slash |
+| "HTTP 401" | API secret is wrong | Double-check the secret matches what's deployed to the Worker |
+| "No response" | Worker is unreachable | Verify the Worker is deployed and the URL is correct |
+| "HTTP 500" | Worker crashed | Check Cloudflare Workers logs for errors |
+
+## Storage Location
+
+**Not configurable** — Recordings are always saved to:
+
+```
+~/Movies/Voom/
+```
+
+**File structure:**
+
+```
+~/Movies/Voom/
+├── 2026-03-02_14-32-10.mov
+├── 2026-03-02_15-45-22.mov
+└── .thumbnails/
+    ├── 3f8a9b2c-....jpg
+    └── 7d1e4f5a-....jpg
+```
+
+**Metadata:**
+
+```
+~/Library/Application Support/Voom/recordings.json
+```
+
+<Note>
+  Recordings are standard `.mov` files. You can move them manually, but Voom will lose track of them (they'll disappear from the library).
+</Note>
+
+## Permissions
+
+Voom requires macOS permissions for certain features. Grant these in **System Settings → Privacy & Security**:
+
+### Screen Recording
+
+- **Required for:** Capturing screen and system audio
+- **Prompt:** First time you start a recording
+- **Effect if denied:** Recording fails immediately
+
+### Camera
+
+- **Required for:** Camera overlay (picture-in-picture webcam)
+- **Prompt:** First time you enable camera in the recording panel
+- **Effect if denied:** Camera overlay is disabled; screen recording still works
+
+### Microphone
+
+- **Required for:** Recording microphone audio
+- **Prompt:** First time you enable microphone in the recording panel
+- **Effect if denied:** Microphone audio is not captured; screen and system audio still work
+
+<Warning>
+  macOS may require you to restart Voom after granting Screen Recording permission. If displays don't appear in the dropdown, restart the app.
+</Warning>
+
+## Advanced Settings
+
+### Link Expiry Duration
+
+**Not configurable in Voom** — Expiry is set in the Cloudflare Worker:
+
+- Default: 30 days
+- Configured in `voom-share/src/index.ts` (search for `expiresAt`)
+- Change the Worker code and redeploy to adjust expiry
+
+### Video Quality
+
+**Not configurable** — Voom always records at:
+
+- Native Retina resolution (e.g., 2880×1800 for 13" MacBook Pro)
+- 60 FPS
+- HEVC (H.265) codec with hardware acceleration
+
+Lower quality or different codecs are not supported.
+
+### Camera Position
+
+**Not in Settings** — Camera overlay position is configured per-recording in the recording panel:
+
+- Bottom Left
+- Bottom Right (default)
+- Top Left
+- Top Right
+
+Voom remembers your last choice.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Settings window won't open">
+    Restart Voom. If it still fails, check Console.app for "Voom" errors. This may indicate a corrupted preferences file in `~/Library/Preferences/`.
+  </Accordion>
+  
+  <Accordion title="Auto-transcribe toggle doesn't work">
+    The setting saves immediately when toggled. If transcription still runs (or doesn't run), restart Voom to reload the setting.
+  </Accordion>
+  
+  <Accordion title="Global hotkey doesn't work after enabling">
+    Restart Voom. The hotkey is registered in `GlobalHotkey.shared.register()` on app launch. Toggling the setting updates the registration, but a restart ensures clean state.
+  </Accordion>
+  
+  <Accordion title="Test Connection always fails">
+    Verify:
+    - Worker is deployed (`npx wrangler deploy` in `voom-share/`)
+    - Worker URL is correct (check for typos, trailing slashes)
+    - API secret matches (`npx wrangler secret list` to confirm it's set)
+    - Your Mac has internet access (try opening the Worker URL in a browser)
+  </Accordion>
+  
+  <Accordion title="Share via Link uploads but link doesn't work">
+    The upload succeeded, but the share page may be broken. Open the share URL in a browser and check the developer console for errors. Verify your Worker has correct R2 bindings.
+  </Accordion>
+</AccordionGroup>

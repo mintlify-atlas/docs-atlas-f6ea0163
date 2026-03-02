@@ -1,0 +1,100 @@
+---
+title: Self-Hosting Overview
+description: Architecture and infrastructure for hosting Voom's sharing infrastructure
+---
+
+Voom's cloud sharing is entirely **opt-in** and runs on your own Cloudflare account. The macOS app is local-first — recordings stay on your Mac unless you explicitly choose to share them.
+
+## Architecture
+
+The sharing infrastructure consists of three Cloudflare services:
+
+- **R2 Bucket** — Stores video files (`.mp4`) and thumbnails (`.jpg`)
+- **D1 Database** — SQLite database tracking videos, metadata, and transcript segments
+- **Cloudflare Worker** — API endpoints and share page renderer
+
+```
+┌─────────────────┐
+│   Voom macOS    │
+│      App        │
+└────────┬────────┘
+         │ HTTPS (Bearer auth)
+         ▼
+┌─────────────────┐
+│ Cloudflare      │
+│ Worker          │◄──── Daily cron (3:00 AM UTC)
+└────┬───────┬────┘
+     │       │
+     │       └───► D1 Database (metadata, transcripts)
+     └───────────► R2 Bucket (videos, thumbnails)
+```
+
+## URL Structure
+
+Share codes are 10-character random strings using `[a-z2-9]` (excluding ambiguous chars like `0`, `1`, `i`, `l`, `o`).
+
+| Route | Purpose |
+|-------|----------|
+| `/s/{code}` | Share page (HTML player with transcript) |
+| `/v/{code}` | Video stream (supports range requests) |
+| `/og/{code}` | Open Graph thumbnail |
+| `/thumb/{code}` | High-res poster image |
+| `/api/upload` | Create new video entry |
+| `/api/upload-data/{code}` | Single-part video upload |
+| `/api/upload-multipart/{code}` | Multipart upload (large files) |
+| `/api/metadata/{code}` | Submit transcript + mark upload complete |
+| `/api/renew/{code}` | Extend expiry by 30 days |
+| `/api/delete/{code}` | Delete video and all assets |
+
+## Authentication
+
+All API routes require Bearer token authentication:
+
+```bash
+Authorization: Bearer YOUR_API_SECRET
+```
+
+The secret is set via `npx wrangler secret put API_SECRET` and checked by the Worker's `isAuthorized()` function.
+
+## 30-Day Expiry
+
+Recordings auto-expire 30 days after creation. A daily cron trigger runs at **3:00 AM UTC** (configured in `wrangler.toml`):
+
+```toml
+[triggers]
+crons = ["0 3 * * *"]
+```
+
+The Worker's `cleanupExpired()` function:
+
+1. Queries all videos where `expires_at < now()`
+2. Deletes from R2: `videos/{code}.mp4`, `thumbnails/{code}.jpg`
+3. Deletes from D1: transcript segments, then video row
+
+## Cost Estimate
+
+Cloudflare's free tier covers most usage. For 2-3 videos/day:
+
+- **R2 Storage**: ~$0.015/GB/month
+- **D1**: First 5GB free
+- **Workers**: First 100k requests/day free
+- **Bandwidth**: R2 egress is free to Cloudflare Workers
+
+**Total: ~$0.35/month** for typical usage (assuming 100MB average video size, 30-day retention).
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Cloudflare Setup" icon="cloud" href="/self-hosting/cloudflare-setup">
+    Create R2 bucket and D1 database
+  </Card>
+  <Card title="Deploy Worker" icon="rocket" href="/self-hosting/deployment">
+    Deploy with wrangler CLI
+  </Card>
+  <Card title="Configure App" icon="gear" href="/self-hosting/configuration">
+    Connect macOS app to your Worker
+  </Card>
+  <Card title="Share Page" icon="play" href="/self-hosting/share-page">
+    How the share page works
+  </Card>
+</CardGroup>

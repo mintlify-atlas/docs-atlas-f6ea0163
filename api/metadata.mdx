@@ -1,0 +1,305 @@
+---
+title: Metadata & Transcripts
+description: Upload transcript segments and video metadata
+---
+
+## POST /api/metadata/:shareCode
+
+Upload transcript segments, update title, and set summary. This endpoint also marks the video as `upload_completed = 1`, making it publicly accessible.
+
+### Path Parameters
+
+<ParamField path="shareCode" type="string" required>
+  Share code from `/api/upload`
+</ParamField>
+
+### Request Body
+
+<ParamField path="segments" type="array">
+  Array of transcript segments (optional, can be empty)
+</ParamField>
+
+<ParamField path="segments[].startTime" type="number">
+  Segment start time in seconds (e.g., `0.0`)
+</ParamField>
+
+<ParamField path="segments[].endTime" type="number">
+  Segment end time in seconds (e.g., `5.2`)
+</ParamField>
+
+<ParamField path="segments[].text" type="string">
+  Transcript text for this segment
+</ParamField>
+
+<ParamField path="title" type="string">
+  Updated video title (optional, uses original if not provided)
+</ParamField>
+
+<ParamField path="summary" type="string">
+  AI-generated or user-provided summary (optional)
+</ParamField>
+
+### Response
+
+```json
+{
+  "ok": true
+}
+```
+
+### Example
+
+```bash
+curl -X POST https://your-worker.workers.dev/api/metadata/xk3m9q7r2w \
+  -H "Authorization: Bearer YOUR_API_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "segments": [
+      {
+        "startTime": 0.0,
+        "endTime": 3.5,
+        "text": "Welcome to this demo of our new product."
+      },
+      {
+        "startTime": 3.5,
+        "endTime": 8.2,
+        "text": "In this video, I will show you the key features."
+      },
+      {
+        "startTime": 8.2,
+        "endTime": 12.0,
+        "text": "First, let me walk you through the interface."
+      }
+    ],
+    "title": "Product Demo - March 2026",
+    "summary": "A comprehensive walkthrough of the new product interface and key features."
+  }'
+```
+
+### Implementation
+
+From `index.js:242-267`:
+
+```javascript
+async function handleMetadata(request, env, shareCode) {
+  const video = await env.DB.prepare('SELECT id FROM videos WHERE share_code = ?').bind(shareCode).first();
+  if (!video) return errorResponse('Video not found', 404);
+
+  const body = await request.json();
+  const { segments, title, summary } = body;
+
+  if (segments && segments.length > 0) {
+    const stmt = env.DB.prepare(
+      'INSERT INTO transcript_segments (video_id, start_time, end_time, text) VALUES (?, ?, ?, ?)'
+    );
+    const batch = segments.map(seg => stmt.bind(video.id, seg.startTime, seg.endTime, seg.text));
+    await env.DB.batch(batch);
+  }
+
+  // Update title, summary, and mark upload complete
+  if (title || summary) {
+    await env.DB.prepare(
+      'UPDATE videos SET upload_completed = 1, title = COALESCE(?, title), summary = ? WHERE share_code = ?'
+    ).bind(title || null, summary || null, shareCode).run();
+  } else {
+    await env.DB.prepare('UPDATE videos SET upload_completed = 1 WHERE share_code = ?').bind(shareCode).run();
+  }
+
+  return jsonResponse({ ok: true });
+}
+```
+
+## Transcript Display
+
+Transcripts are displayed on the share page with:
+
+- **Click to seek**: Click any segment to jump to that timestamp
+- **Active highlighting**: Current segment is highlighted as the video plays
+- **Copy timestamp link**: Each segment has a copy button for sharing timestamped links
+- **Captions overlay**: Text displayed on the video player (can be toggled with "CC" button)
+
+### Share Page Transcript UI
+
+From `index.js:699-705`:
+
+```html
+<div class="transcript-section">
+  <div class="section-header">
+    <span class="label">Transcript</span>
+  </div>
+  <div class="transcript-list" id="transcript-list">${segmentsHTML}</div>
+</div>
+```
+
+### Transcript Segment Template
+
+From `index.js:483-494`:
+
+```javascript
+const segmentsHTML = segments
+  .map(
+    s => `
+      <div class="transcript-row" data-start="${s.start_time}">
+        <span class="timestamp">${formatTimestamp(s.start_time)}</span>
+        <span class="text">${escapeHTML(s.text)}</span>
+        <button class="copy-ts" title="Copy link to this timestamp" data-time="${s.start_time}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        </button>
+      </div>`
+  )
+  .join('');
+```
+
+## Captions Overlay
+
+The share page automatically displays captions as the video plays:
+
+From `index.js:809-823`:
+
+```javascript
+vid.addEventListener('timeupdate', () => {
+  const t = vid.currentTime;
+  // ...
+
+  // Captions + transcript highlight
+  let found = false;
+  rows.forEach((el, i) => {
+    if (!segs[i]) return;
+    const s = segs[i];
+    const active = t >= s.start && t < s.end;
+    el.classList.toggle('active', active);
+    if (active) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (capSpan && ccOn) {
+        capSpan.textContent = s.text;
+        cap.classList.remove('hidden');
+        found = true;
+      }
+    }
+  });
+  if (!found && capSpan) {
+    cap.classList.add('hidden');
+  }
+});
+```
+
+## Swift Client Example
+
+From `ShareService.swift:305-325`:
+
+```swift
+private func postMetadata(
+    shareCode: String,
+    title: String,
+    summary: String?,
+    segments: [TranscriptEntry]
+) async throws {
+    var request = URLRequest(url: apiURL("/api/metadata/\(shareCode)"))
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    applyAuth(&request)
+
+    let segmentDicts = segments.map { seg -> [String: Any] in
+        ["startTime": seg.startTime, "endTime": seg.endTime, "text": seg.text]
+    }
+    var body: [String: Any] = [
+        "segments": segmentDicts,
+        "title": title,
+    ]
+    if let summary, !summary.isEmpty {
+        body["summary"] = summary
+    }
+    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+    let (data, response) = try await URLSession.shared.data(for: request)
+    try validateResponse(response, data: data)
+}
+```
+
+## Database Schema
+
+Transcript segments are stored in the `transcript_segments` table:
+
+```sql
+CREATE TABLE transcript_segments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    start_time REAL NOT NULL,
+    end_time REAL NOT NULL,
+    text TEXT NOT NULL
+);
+CREATE INDEX idx_transcript_video_id ON transcript_segments(video_id);
+```
+
+Metadata fields in `videos` table:
+
+```sql
+CREATE TABLE videos (
+    -- ...
+    title TEXT NOT NULL,
+    summary TEXT,  -- Added via metadata endpoint
+    upload_completed INTEGER NOT NULL DEFAULT 0,  -- Set to 1 by metadata endpoint
+    -- ...
+);
+```
+
+## Upload Completed Flag
+
+Videos are only publicly accessible after `upload_completed = 1` is set by this endpoint.
+
+From `index.js:352-357` (share page check):
+
+```javascript
+const video = await env.DB.prepare(
+  "SELECT * FROM videos WHERE share_code = ? AND upload_completed = 1"
+)
+  .bind(shareCode)
+  .first();
+```
+
+## Best Practices
+
+<Tip>
+  Call this endpoint **after** video and thumbnail uploads are complete. It marks the video as ready for public viewing.
+</Tip>
+
+### Recommendations
+
+- **Always provide segments**: Transcripts improve accessibility and SEO
+- **Generate summaries**: Use AI to create concise summaries for better sharing
+- **Update title**: Refine the title based on transcript content
+- **Keep segments short**: 3-10 seconds per segment works best for readability
+- **Escape HTML**: The API handles HTML escaping, but ensure no malicious content in text
+
+## Error Responses
+
+### Video Not Found (404)
+
+```json
+{
+  "error": "Video not found"
+}
+```
+
+Occurs if the share code doesn't exist in the database.
+
+### Unauthorized (401)
+
+```json
+{
+  "error": "Unauthorized"
+}
+```
+
+Missing or invalid Bearer token.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Management" icon="tools" href="/api/management">
+    Renew or delete shared videos
+  </Card>
+  <Card title="Database Schema" icon="table" href="/api/schema">
+    Full D1 database structure
+  </Card>
+</CardGroup>

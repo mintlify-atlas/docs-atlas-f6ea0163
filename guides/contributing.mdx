@@ -1,0 +1,397 @@
+---
+title: Contributing to Voom
+description: How to contribute code, report bugs, and improve Voom
+---
+
+## Welcome
+
+Thanks for your interest in contributing to Voom! This guide will help you get started.
+
+<Info>
+  Voom is intentionally minimal. The goal is to keep it simple, fast, and focused on core functionality: record, transcribe, share.
+</Info>
+
+## Getting Started
+
+<Steps>
+  <Step title="Fork and Clone">
+    Fork the repository on GitHub and clone it to your local machine:
+    
+    ```bash
+    git clone https://github.com/yourusername/voom.git
+    cd voom
+    ```
+  </Step>
+
+  <Step title="Open in Xcode">
+    Open the Xcode project:
+    
+    ```bash
+    open Voom/Voom.xcodeproj
+    ```
+    
+    **Requirements**:
+    - Xcode 16 or later
+    - macOS 15 SDK
+    - Apple Silicon Mac (for transcription features)
+  </Step>
+
+  <Step title="Build and Run">
+    Build the project:
+    
+    ```bash
+    cd Voom
+    xcodebuild -scheme Voom -configuration Debug build
+    ```
+    
+    Then run from DerivedData:
+    
+    ```bash
+    open ~/Library/Developer/Xcode/DerivedData/Voom-*/Build/Products/Debug/Voom.app
+    ```
+  </Step>
+
+  <Step title="Verify It Works">
+    The app runs as a menu bar agent. Click the menu bar icon to open the control panel and try recording a short test video.
+  </Step>
+</Steps>
+
+<Tip>
+  You don't need cloud sharing configured to work on the app. Recording and transcription work entirely offline.
+</Tip>
+
+## Project Structure
+
+Voom is organized into clear modules:
+
+```
+Voom/
+  App/            Entry point, AppDelegate, AppState
+  Models/         Recording data model
+  Views/
+    Panel/        Floating control panel (record/stop)
+    Library/      Recording library window
+    Player/       Video player with transcript
+    Settings/     App settings
+    Overlay/      Screen overlays (countdown, display picker, camera PiP)
+  Services/
+    Capture/      ScreenCaptureKit recording + camera
+    Writing/      HEVC video encoding
+    Transcription/ WhisperKit on-device transcription
+    Sharing/      Cloudflare upload service
+    Storage/      Local recording persistence
+
+voom-share/       Cloudflare Worker (share page + API)
+```
+
+### Architecture Patterns
+
+<CardGroup cols={2}>
+  <Card title="Services" icon="gear">
+    Services use the **actor singleton pattern** (`static let shared`) for thread safety and global access.
+  </Card>
+  
+  <Card title="State Management" icon="database">
+    `RecordingStore` is `@Observable @MainActor` with `update(_ recording:)` for mutations.
+  </Card>
+  
+  <Card title="Design Tokens" icon="palette">
+    `VoomTheme` holds all design tokens: colors, spacing, radii, typography. Use these instead of hardcoding values.
+  </Card>
+  
+  <Card title="Swift 6" icon="swift">
+    Uses Swift 6 with targeted strict concurrency. Prefer `@Observable` over `ObservableObject` and `@State` over `@StateObject`.
+  </Card>
+</CardGroup>
+
+## Development Workflow
+
+### Build Commands
+
+<CodeGroup>
+```bash Debug Build
+cd Voom
+xcodebuild -scheme Voom -configuration Debug build
+```
+
+```bash Release Build
+cd Voom
+xcodebuild -scheme Voom -configuration Release build
+```
+
+```bash Run After Build
+open ~/Library/Developer/Xcode/DerivedData/Voom-*/Build/Products/Debug/Voom.app
+```
+
+```bash Kill and Relaunch
+pkill -x Voom
+sleep 1
+open ~/Library/Developer/Xcode/DerivedData/Voom-*/Build/Products/Debug/Voom.app
+```
+</CodeGroup>
+
+<Warning>
+  Always rebuild and relaunch the app after code changes before validating behavior. Don't rely on Xcode's hot reload.
+</Warning>
+
+### Testing Your Changes
+
+<Check>**Record an end-to-end video** — The best way to test is to record a real video with camera and mic</Check>
+<Check>**Test transcription** — Verify transcripts generate correctly (requires Apple Silicon)</Check>
+<Check>**Test sharing** (optional) — If you modified sharing code, test upload and share page</Check>
+<Check>**Check edge cases** — Try different display configurations, permissions states, etc.</Check>
+
+## Contribution Guidelines
+
+### Code Style
+
+<AccordionGroup>
+  <Accordion title="Swift Style" icon="code">
+    - Follow existing patterns — services use actor singletons, views use `@Environment`
+    - Use `@Observable` over `ObservableObject`
+    - Use `@State` over `@StateObject`
+    - Match existing MARK organization and naming conventions
+    - Keep changes minimal — don't refactor code you didn't need to touch
+  </Accordion>
+
+  <Accordion title="File Organization" icon="folder">
+    New files must be added to `project.pbxproj` manually:
+    
+    1. Create the file in the appropriate directory
+    2. Add PBXFileReference entry
+    3. Add PBXBuildFile entry
+    4. Add to appropriate PBXGroup
+    
+    <Tip>
+      Use Xcode to add files and it will handle the `.pbxproj` updates automatically.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="Dependencies" icon="box">
+    **No new dependencies without discussion.**
+    
+    Voom intentionally minimizes dependencies. Current dependencies:
+    - WhisperKit (for transcription)
+    - System frameworks (ScreenCaptureKit, AVFoundation, SwiftUI)
+    
+    Before adding a dependency, ask:
+    - Can this be implemented with existing frameworks?
+    - Is the added complexity worth the benefit?
+    - Does it align with Voom's minimal philosophy?
+  </Accordion>
+
+  <Accordion title="Keep It Simple" icon="lightbulb">
+    Voom is intentionally minimal. When considering new features:
+    
+    - Does it fit the core mission? (record, transcribe, share)
+    - Does it maintain privacy-first principles?
+    - Does it add significant complexity?
+    - Can it be implemented as an optional feature?
+    
+    **Examples of what NOT to add**:
+    - Video editing tools
+    - Analytics dashboards
+    - Team collaboration features
+    - Comments or reactions
+    - CRM integrations
+  </Accordion>
+</AccordionGroup>
+
+### Code Signing
+
+<Warning>
+  Must use Apple Development certificate, not self-signed.
+</Warning>
+
+Ensure these settings in your Xcode project:
+- `CODE_SIGN_IDENTITY = "Apple Development"`
+- `CODE_SIGN_STYLE = Automatic`
+- Team set to your development team
+
+**Never leave stale builds in `build/`** — macOS Launch Services may pick those over DerivedData builds.
+
+### Secrets
+
+<Card icon="key" title="Never Commit Secrets">
+  - No API secrets, tokens, or credentials in code
+  - Cloud sharing secrets are set at runtime via Settings UI
+  - Worker API secret is deployed via `npx wrangler secret put API_SECRET`
+  - Use `.gitignore` to exclude sensitive files
+</Card>
+
+## Submitting Changes
+
+<Steps>
+  <Step title="Create a Branch">
+    Create a branch from `main` with a descriptive name:
+    
+    ```bash
+    git checkout -b fix-audio-mixing
+    ```
+  </Step>
+
+  <Step title="Make Your Changes">
+    - Follow the code style guidelines above
+    - Test your changes end-to-end
+    - Keep commits focused and atomic
+  </Step>
+
+  <Step title="Commit">
+    Write short, imperative commit messages:
+    
+    ```bash
+    git commit -m "Fix audio mixing when both sources active"
+    ```
+    
+    **Good examples**:
+    - "Fix audio mixing when both sources active"
+    - "Add camera position persistence"
+    - "Update share page styling"
+    
+    **Bad examples**:
+    - "Fixed a bug" (too vague)
+    - "Updated code" (no information)
+    - "WIP" (commit work in progress with better description)
+  </Step>
+
+  <Step title="Open a Pull Request">
+    Push your branch and open a PR on GitHub.
+    
+    **PR should include**:
+    - Clear description of what changed
+    - Why the change was needed
+    - How to test the change
+    - Screenshots/videos if UI changed
+    
+    Example PR description:
+    ```
+    ## Summary
+    Fixes audio mixing when both system audio and microphone are enabled.
+    
+    ## Changes
+    - Updated audio mixing logic in CaptureService
+    - Added proper channel mapping for dual sources
+    
+    ## Testing
+    1. Enable both system audio and mic
+    2. Record a video while playing music
+    3. Verify both audio sources are present in recording
+    ```
+  </Step>
+</Steps>
+
+## Commit Guidelines
+
+Voom follows specific commit practices:
+
+- **Short imperative messages**: "Fix audio mixing when both sources active"
+- **One logical change per commit**: Don't bundle unrelated changes
+- **Scoped commits**: Keep commits focused on a single component or fix
+
+## Versioning
+
+Voom uses [Pride Versioning](https://pridever.org/) (PROUD.DEFAULT.SHAME):
+
+- **PROUD**: Bump for releases you're proud of
+- **DEFAULT**: Bump for normal releases
+- **SHAME**: Bump for embarrassing fixes
+
+<Info>
+  Maintainers handle version bumps. Contributors don't need to modify version numbers in PRs.
+</Info>
+
+## Working on Cloud Sharing (Optional)
+
+The `voom-share/` directory contains the Cloudflare Worker for share pages.
+
+### Setup
+
+```bash
+cd voom-share
+npm install
+npx wrangler login
+npx wrangler r2 bucket create voom-videos
+npx wrangler d1 create voom-share-db
+# Paste the database_id into wrangler.toml
+npx wrangler d1 execute voom-share-db --file=./schema.sql --remote
+npx wrangler secret put API_SECRET
+npx wrangler deploy
+```
+
+### Deploy Worker
+
+```bash
+cd voom-share
+npx wrangler deploy
+```
+
+<Tip>
+  You can work on the macOS app without setting up cloud sharing. It's entirely optional for development.
+</Tip>
+
+## Repository Agent Guidelines
+
+For AI agents working on Voom, see the [AGENTS.md](https://github.com/yourusername/voom/blob/main/AGENTS.md) file for additional context:
+
+- Build, test, and run commands
+- Architecture patterns (actor singletons, @Observable, theme system)
+- File organization (manual PBXproj updates)
+- Code signing requirements
+- Commit and versioning guidelines
+
+## Getting Help
+
+<CardGroup cols={2}>
+  <Card title="GitHub Discussions" icon="comments">
+    Ask questions or discuss ideas in [GitHub Discussions](https://github.com/yourusername/voom/discussions).
+  </Card>
+  
+  <Card title="GitHub Issues" icon="bug">
+    Report bugs or request features in [GitHub Issues](https://github.com/yourusername/voom/issues).
+  </Card>
+</CardGroup>
+
+## What to Contribute
+
+Here are some areas where contributions are welcome:
+
+<CardGroup cols={2}>
+  <Card title="Bug Fixes" icon="wrench">
+    Fix reported issues or bugs you discover while using Voom.
+  </Card>
+  
+  <Card title="Performance" icon="gauge-high">
+    Improve recording, encoding, or transcription performance.
+  </Card>
+  
+  <Card title="UI/UX Polish" icon="paintbrush">
+    Improve existing UI flows, fix layout issues, enhance accessibility.
+  </Card>
+  
+  <Card title="Documentation" icon="book">
+    Improve README, code comments, or documentation.
+  </Card>
+</CardGroup>
+
+**Not looking for**:
+- Major feature additions that change core philosophy
+- Platform ports (Windows, Linux) — Voom is intentionally macOS-native
+- Third-party integrations (analytics, CRM, etc.)
+- Video editing features
+
+## Code of Conduct
+
+Be respectful and professional. We're all here to make Voom better.
+
+- Be kind and considerate
+- Accept constructive criticism gracefully
+- Focus on what's best for the project
+- Respect maintainer decisions on feature scope
+
+## License
+
+By contributing to Voom, you agree that your contributions will be licensed under the MIT License. See [LICENSE](https://github.com/yourusername/voom/blob/main/LICENSE) for details.
+
+---
+
+Thank you for contributing to Voom!

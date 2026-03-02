@@ -1,0 +1,164 @@
+---
+title: Privacy & Data Handling
+description: How Voom protects your privacy with local-first architecture
+---
+
+## Local-First by Design
+
+Voom is built with privacy as the default. **All recordings stay on your Mac** unless you explicitly choose to share them.
+
+<Card title="Key Privacy Principle" icon="shield-check">
+  Your recordings, transcripts, and metadata never leave your device unless you opt-in to cloud sharing.
+</Card>
+
+## What Stays Local
+
+<AccordionGroup>
+  <Accordion title="Screen Recordings" icon="video">
+    All video files are stored locally on your Mac in HEVC format using hardware-accelerated encoding. Recordings are saved to your local file system and are never uploaded automatically.
+    
+    **Location**: Managed by the app's local storage service (`Services/Storage/`)
+  </Accordion>
+
+  <Accordion title="Transcriptions" icon="closed-captioning">
+    Transcription happens entirely on-device using **WhisperKit** (distil-large-v3 model). The audio never leaves your machine.
+    
+    - Runs on Apple Silicon neural engine
+    - Fully offline — no internet required
+    - Transcript data stored locally alongside recordings
+    
+    **Technology**: `Services/Transcription/` using WhisperKit framework
+  </Accordion>
+
+  <Accordion title="Metadata" icon="database">
+    Recording metadata (title, date, duration, transcript) is stored locally on your Mac.
+    
+    - No analytics sent to external servers
+    - No tracking of recording habits
+    - No telemetry or crash reporting
+  </Accordion>
+</AccordionGroup>
+
+## Cloud Sharing (Opt-In)
+
+Cloud sharing is **completely optional** and requires manual setup. When you choose to share a recording:
+
+<Steps>
+  <Step title="You Control the Infrastructure">
+    Shared videos are uploaded to **your own Cloudflare account**, not Voom's servers. You own the infrastructure:
+    
+    - Cloudflare R2 for video storage
+    - Cloudflare D1 for metadata
+    - Cloudflare Workers for the share page API
+  </Step>
+
+  <Step title="Explicit Per-Recording Consent">
+    Sharing is per-recording, not automatic. You choose which videos to upload.
+  </Step>
+
+  <Step title="30-Day Auto-Expiry">
+    Share links automatically expire after 30 days (configurable). A daily cron job cleans up expired videos and metadata.
+  </Step>
+</Steps>
+
+### What Gets Uploaded
+
+When you share a recording, the following is uploaded to **your Cloudflare account**:
+
+- Video file (HEVC encoded)
+- Transcript data (for synced captions)
+- Basic metadata (title, duration, upload timestamp)
+
+### What Doesn't Get Uploaded
+
+- Your personal information
+- Recording history or library contents
+- Analytics or viewing data
+- Any recordings you don't explicitly share
+
+<Note>
+  The Cloudflare Worker code is open source. You can audit exactly what data is stored and how it's handled in the `voom-share/` directory.
+</Note>
+
+## Share Page Privacy
+
+The share page is designed with viewer privacy in mind:
+
+| Feature | Privacy Benefit |
+|---------|----------------|
+| View-only | No download button — reduces unauthorized redistribution |
+| No tracking | No analytics or viewer tracking |
+| No login required | Viewers don't need accounts |
+| Expiring links | 30-day auto-deletion limits exposure window |
+
+<Warning>
+  While the share page is view-only, determined viewers could still capture video content using screen recording tools. Don't share sensitive content you wouldn't want potentially copied.
+</Warning>
+
+## Credentials & Secrets
+
+Voom follows security best practices for handling credentials:
+
+<CardGroup cols={2}>
+  <Card title="App Storage" icon="lock">
+    Cloud sharing credentials (Worker URL and API secret) are stored in macOS UserDefaults. They never leave your device.
+  </Card>
+
+  <Card title="Worker Deployment" icon="cloud">
+    The API secret is deployed using `npx wrangler secret put API_SECRET` and stored securely in Cloudflare's environment.
+  </Card>
+</CardGroup>
+
+### Setting Up Cloud Sharing
+
+Credentials are configured locally:
+
+1. Right-click the Voom menu bar icon
+2. Go to **Settings**
+3. Enter your Worker URL and API secret
+4. These are stored locally and used only when you choose to share
+
+## Data You Can Trust
+
+<Check>**No third-party analytics** — Voom doesn't use Google Analytics, Mixpanel, or similar tools</Check>
+<Check>**No crash reporting** — No Sentry, Crashlytics, or telemetry services</Check>
+<Check>**No cloud dependencies** — App works 100% offline for recording and transcription</Check>
+<Check>**Open source** — You can audit the entire codebase (MIT license)</Check>
+
+## Cost of Cloud Sharing
+
+Because you use your own Cloudflare infrastructure, costs are transparent:
+
+- **~$0.35/month** for 2-3 videos per day
+- R2 storage pricing: $0.015/GB stored per month
+- Workers requests: 100,000 free requests/day
+- D1 database: 5GB storage included free
+
+<Tip>
+  You can monitor exact costs in your Cloudflare dashboard. No surprise bills or hidden fees.
+</Tip>
+
+## GDPR & Compliance
+
+Since recordings stay local by default:
+
+- No data processing agreements needed for local use
+- You control data residency for shared videos (choose Cloudflare region)
+- No data shared with third parties
+- Easy data deletion (delete local recordings or purge R2 bucket)
+
+<Info>
+  If you use Voom in an enterprise context with cloud sharing, consult your legal team about data handling policies for your Cloudflare deployment.
+</Info>
+
+## Summary
+
+Voom's privacy model is simple:
+
+1. **Everything local by default** — recordings, transcripts, metadata
+2. **On-device transcription** — WhisperKit runs entirely on your Mac
+3. **Opt-in cloud sharing** — you choose what to upload, when, and where
+4. **You own the infrastructure** — your Cloudflare account, your control
+5. **Open source** — audit the code yourself
+
+No tracking. No telemetry. No third-party servers. Just your recordings, on your machine.

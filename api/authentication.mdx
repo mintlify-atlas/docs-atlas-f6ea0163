@@ -1,0 +1,193 @@
+---
+title: Authentication
+description: Authenticate API requests with Bearer tokens
+---
+
+## Overview
+
+All `/api/*` endpoints require **Bearer token authentication**. The API secret is stored as a Cloudflare Worker secret and validated on every authenticated request.
+
+## Setting the API Secret
+
+Deploy your API secret to Cloudflare Workers:
+
+```bash
+cd voom-share
+npx wrangler secret put API_SECRET
+```
+
+You'll be prompted to enter the secret value. Store this securely—it's needed for all API calls.
+
+## Making Authenticated Requests
+
+Include the API secret in the `Authorization` header:
+
+```bash
+curl -X POST https://your-worker.workers.dev/api/upload \
+  -H "Authorization: Bearer YOUR_API_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "My Recording"}'
+```
+
+## Header Format
+
+The `Authorization` header must follow this format:
+
+```
+Authorization: Bearer YOUR_API_SECRET
+```
+
+- **Scheme**: `Bearer` (case-sensitive)
+- **Token**: Your API secret from Cloudflare Worker secrets
+
+## Validation Logic
+
+From `index.js:11-16`:
+
+```javascript
+function isAuthorized(request, env) {
+  const auth = request.headers.get('Authorization');
+  if (!auth) return false;
+  const [scheme, token] = auth.split(' ');
+  return scheme === 'Bearer' && token === env.API_SECRET;
+}
+```
+
+The worker validates:
+
+1. Authorization header is present
+2. Scheme is exactly `"Bearer"`
+3. Token matches `env.API_SECRET`
+
+## Unauthorized Response
+
+If authentication fails, the API returns:
+
+```json
+{
+  "error": "Unauthorized"
+}
+```
+
+With HTTP status `401`.
+
+## CORS Preflight
+
+OPTIONS requests bypass authentication and return CORS headers:
+
+```javascript
+if (request.method === 'OPTIONS') {
+  return new Response(null, {
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    },
+  });
+}
+```
+
+## Configuration in Swift Client
+
+From `ShareService.swift:6-19`:
+
+```swift
+enum ShareConfig {
+    static var workerBaseURL: String {
+        get { UserDefaults.standard.string(forKey: "ShareWorkerBaseURL") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "ShareWorkerBaseURL") }
+    }
+
+    static var apiSecret: String {
+        get { UserDefaults.standard.string(forKey: "ShareAPISecret") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "ShareAPISecret") }
+    }
+
+    static var isConfigured: Bool {
+        !workerBaseURL.isEmpty && !apiSecret.isEmpty
+    }
+}
+```
+
+The macOS app stores credentials in `UserDefaults` and applies them to every request:
+
+```swift
+private func applyAuth(_ request: inout URLRequest) {
+    request.setValue("Bearer \(ShareConfig.apiSecret)", forHTTPHeaderField: "Authorization")
+}
+```
+
+## Security Best Practices
+
+<Warning>
+  Never commit your API secret to version control. Use Cloudflare Worker secrets and secure client-side storage.
+</Warning>
+
+### Recommendations
+
+- **Rotate secrets** periodically
+- **Use HTTPS only** (enforced by Cloudflare Workers)
+- **Store secrets securely** on clients (Keychain on macOS, encrypted storage on other platforms)
+- **Implement rate limiting** for production use
+- **Monitor logs** for unauthorized access attempts
+
+## Example: Full Authenticated Upload
+
+```bash
+# 1. Request upload slot
+curl -X POST https://your-worker.workers.dev/api/upload \
+  -H "Authorization: Bearer YOUR_API_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Demo Recording",
+    "duration": 120.5,
+    "width": 1920,
+    "height": 1080,
+    "hasWebcam": false,
+    "fileSize": 52428800
+  }'
+
+# Response:
+# {
+#   "shareCode": "xk3m9q7r2w",
+#   "uploadURL": "https://your-worker.workers.dev/api/upload-data/xk3m9q7r2w",
+#   "shareURL": "https://your-worker.workers.dev/s/xk3m9q7r2w",
+#   "expiresAt": "2026-04-01T12:00:00.000Z"
+# }
+
+# 2. Start multipart upload
+curl -X POST https://your-worker.workers.dev/api/upload-multipart/xk3m9q7r2w \
+  -H "Authorization: Bearer YOUR_API_SECRET"
+
+# Response:
+# {
+#   "uploadId": "f3d2a1b0c9e8d7f6a5b4c3d2e1f0"
+# }
+
+# 3. Upload parts (repeat for each chunk)
+curl -X PUT https://your-worker.workers.dev/api/upload-part/xk3m9q7r2w/f3d2a1b0c9e8d7f6a5b4c3d2e1f0/1 \
+  -H "Authorization: Bearer YOUR_API_SECRET" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @part1.bin
+
+# 4. Complete upload
+curl -X POST https://your-worker.workers.dev/api/upload-complete/xk3m9q7r2w/f3d2a1b0c9e8d7f6a5b4c3d2e1f0 \
+  -H "Authorization: Bearer YOUR_API_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "parts": [
+      {"partNumber": 1, "etag": "\"abc123\""}
+    ]
+  }'
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Upload Endpoints" icon="upload" href="/api/upload">
+    Learn the video upload flow
+  </Card>
+  <Card title="Metadata" icon="database" href="/api/metadata">
+    Add transcripts and summaries
+  </Card>
+</CardGroup>

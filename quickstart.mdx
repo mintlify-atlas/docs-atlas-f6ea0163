@@ -1,80 +1,185 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get your first Voom recording in under 2 minutes
 ---
 
-## Get started in three steps
+Get up and running with Voom in minutes. This guide walks you through installing the app, granting permissions, and creating your first screen recording with transcription.
 
-Get your documentation site running locally and make your first customization.
+## Install Voom
 
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+<Steps>
+  <Step title="Download and install">
+    Download the latest release from [GitHub](https://github.com/aritropaul/voom/releases) and drag Voom.app to your Applications folder.
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```bash
+    open -a Voom
+    ```
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    Voom runs as a menu bar app — look for the icon in your top menu bar.
+  </Step>
+  
+  <Step title="Grant permissions">
+    On first launch, macOS requests permissions:
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    - **Screen Recording** — Required to capture your screen
+    - **Microphone** — Optional, for voice recording
+    - **Camera** — Optional, for webcam overlay
+    
+    Click **Allow** for each prompt. You may need to restart Voom after granting permissions.
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+<Note>
+  Voom requires macOS 15.0+ and Apple Silicon for on-device transcription.
+</Note>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+## Record your first video
 
-### Step 3: Go live
+<Steps>
+  <Step title="Start recording">
+    Press **⌘⇧R** (Command+Shift+R) or click the Voom menu bar icon and select **Start Recording**.
+    
+    <Accordion title="First-time setup">
+      The first time you record, Voom displays a countdown and asks you to:
+      
+      - Choose which display to record
+      - Enable/disable webcam overlay
+      - Enable/disable system audio
+      - Enable/disable microphone
+      
+      These settings are remembered for future recordings.
+    </Accordion>
+  </Step>
+  
+  <Step title="Record your screen">
+    After the 3-second countdown, Voom begins recording:
+    
+    - Your screen is captured at full resolution
+    - The webcam appears as a draggable overlay (if enabled)
+    - System audio and mic are recorded simultaneously
+    
+    Click **Stop** in the menu bar or press **⌘⇧R** again to finish.
+  </Step>
+  
+  <Step title="View your recording">
+    Press **⌘⇧L** (Command+Shift+L) to open the Library window.
+    
+    Your recording appears at the top with:
+    - Auto-generated title (if Apple Intelligence is enabled)
+    - Duration and resolution
+    - Creation date
+    
+    Click the recording to play it back with the built-in player.
+  </Step>
+</Steps>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+## Enable transcription
+
+Voom can transcribe your recordings on-device using WhisperKit. The first transcription downloads the ML model (~1.5GB).
+
+<Steps>
+  <Step title="Enable auto-transcription">
+    Click the Voom menu bar icon → **Settings** → **General** tab.
+    
+    Enable **Auto-transcribe new recordings**.
+  </Step>
+  
+  <Step title="Record with transcription">
+    Create a new recording using **⌘⇧R**.
+    
+    After recording stops, Voom automatically transcribes the audio. This takes ~30 seconds per minute of recording on Apple Silicon.
+  </Step>
+  
+  <Step title="View the transcript">
+    Open your recording in the Library (**⌘⇧L**).
+    
+    The transcript appears below the video player with:
+    - Timestamped segments
+    - Click-to-seek (click any line to jump to that moment)
+    - Full-text search
+    
+    <Tip>
+      Edit transcript text by double-clicking any segment. Changes are saved automatically.
+    </Tip>
+  </Step>
+</Steps>
+
+## Share your recording (optional)
+
+To share recordings via link, you need to set up cloud hosting on Cloudflare. This is entirely optional — recordings work locally without it.
+
+<Steps>
+  <Step title="Deploy Cloudflare Worker">
+    Follow the [cloud sharing setup guide](/self-hosting/cloudflare-setup) to deploy the Worker to your Cloudflare account.
+    
+    Total cost: ~$0.35/month for 2-3 videos per day.
+  </Step>
+  
+  <Step title="Configure Voom">
+    In Voom settings (**Settings** → **Sharing** tab):
+    
+    - **Worker URL**: Your Cloudflare Worker URL
+    - **API Secret**: The secret you set with `wrangler secret put API_SECRET`
+    
+    Click **Test Connection** to verify.
+  </Step>
+  
+  <Step title="Share a recording">
+    In the Library, right-click any recording and select **Share**.
+    
+    Voom uploads the video and transcript to your Cloudflare R2 bucket and returns a shareable link:
+    
+    ```
+    https://your-worker.workers.dev/s/abc123xyz
+    ```
+    
+    Links expire after 30 days by default.
+  </Step>
+</Steps>
+
+## Keyboard shortcuts
+
+Master these shortcuts for the fastest workflow:
+
+| Shortcut | Action |
+|----------|--------|
+| **⌘⇧R** | Start/stop recording |
+| **⌘⇧L** | Open library window |
+| **Space** | Play/pause video |
+| **←/→** | Seek backward/forward 5 seconds |
+| **⌘⌫** | Delete selected recording |
+
+See the [full keyboard shortcuts reference](/app/keyboard-shortcuts) for more.
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card
+    title="Recording guide"
+    icon="video"
+    href="/app/recording"
+  >
+    Learn about camera overlay, audio mixing, and recording settings
+  </Card>
+  <Card
+    title="Transcription"
+    icon="message"
+    href="/app/transcription"
+  >
+    Deep dive into WhisperKit transcription and AI features
+  </Card>
+  <Card
+    title="Cloud sharing"
+    icon="cloud"
+    href="/self-hosting/overview"
+  >
+    Deploy your own Cloudflare Worker for shareable links
+  </Card>
+  <Card
+    title="Troubleshooting"
+    icon="wrench"
+    href="/guides/troubleshooting"
+  >
+    Fix common issues with permissions, builds, and transcription
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
