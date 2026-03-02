@@ -40,7 +40,7 @@ By default, Voom transcribes recordings with audio immediately after capture:
   </Step>
   
   <Step title="AI title & summary (optional)">
-    If Apple Intelligence is available, Voom generates a descriptive title and summary from the transcript
+    If Apple Foundation Models are available (macOS 26.0+), Voom generates a descriptive title and summary from the transcript
   </Step>
 </Steps>
 
@@ -126,7 +126,7 @@ Use the search bar above the transcript to find specific words or phrases:
 
 ### Title Generation
 
-If Apple Intelligence is available on your Mac, Voom automatically generates a descriptive title from the transcript:
+If Apple Foundation Models are available on your Mac (macOS 26.0+), Voom automatically generates a descriptive title from the transcript:
 
 - Replaces the default filename-based title
 - Summarizes the recording's content in 3-8 words
@@ -141,7 +141,7 @@ Voom also generates a brief summary:
 - Editable via the summary text area
 
 <Warning>
-  AI title and summary generation requires Apple Silicon (M1 or newer) with macOS Sequoia 15.1+ and Apple Intelligence enabled. If unavailable, recordings keep their filename-based title.
+  AI title and summary generation requires Apple Silicon (M1 or newer) with macOS 26.0+ and Apple Foundation Models available. If unavailable, recordings keep their filename-based title.
 </Warning>
 
 ### Regenerating Metadata
@@ -232,6 +232,6 @@ Transcripts are included when you:
   </Accordion>
   
   <Accordion title="No AI title/summary generated">
-    Apple Intelligence requires macOS 15.1+ with Apple Intelligence enabled in System Settings. Only M1/M2/M3/M4 Macs in supported regions can use this feature.
+    AI title and summary generation requires macOS 26.0+ with Apple Foundation Models available. This feature is only available on newer macOS versions with Apple Silicon.
   </Accordion>
 </AccordionGroup>
