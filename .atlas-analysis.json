@@ -1,0 +1,101 @@
+{
+  "projectType": "saas",
+  "projectName": "Voom",
+  "projectDescription": "Open-source Loom alternative for macOS with on-device transcription and self-hosted sharing.",
+  "theme": "palm",
+  "primaryColor": "#8B5CF6",
+  "lightColor": "#A78BFA",
+  "darkColor": "#7C3AED",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "macOS App",
+            "pages": [
+              "app/recording",
+              "app/transcription",
+              "app/library",
+              "app/settings",
+              "app/keyboard-shortcuts"
+            ]
+          },
+          {
+            "group": "Self-Hosting",
+            "pages": [
+              "self-hosting/overview",
+              "self-hosting/cloudflare-setup",
+              "self-hosting/deployment",
+              "self-hosting/configuration",
+              "self-hosting/share-page"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/voom-vs-loom",
+              "guides/privacy",
+              "guides/troubleshooting",
+              "guides/contributing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Worker API",
+            "pages": [
+              "api/overview",
+              "api/authentication",
+              "api/upload",
+              "api/metadata",
+              "api/management"
+            ]
+          },
+          {
+            "group": "Database",
+            "pages": [
+              "api/schema"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Screen recording with webcam overlay",
+    "On-device transcription using WhisperKit",
+    "Self-hosted sharing on Cloudflare Workers",
+    "30-day auto-expiring share links",
+    "Native macOS app with SwiftUI",
+    "HEVC hardware encoding",
+    "Synced transcript and captions",
+    "Privacy-first local-first architecture"
+  ],
+  "publicApiSurface": [
+    "POST /api/upload - Create new video upload",
+    "PUT /api/upload-data/:shareCode - Upload video file",
+    "PUT /api/upload-thumbnail/:shareCode - Upload thumbnail",
+    "POST /api/upload-multipart/:shareCode - Start multipart upload",
+    "PUT /api/upload-part/:shareCode/:uploadId/:partNumber - Upload part",
+    "POST /api/upload-complete/:shareCode/:uploadId - Complete multipart upload",
+    "POST /api/metadata/:shareCode - Post transcript and metadata",
+    "POST /api/renew/:shareCode - Renew expiry date",
+    "DELETE /api/delete/:shareCode - Delete shared video",
+    "GET /s/:shareCode - View share page",
+    "GET /v/:shareCode - Stream video",
+    "GET /og/:shareCode - Get OG image",
+    "GET /thumb/:shareCode - Get thumbnail"
+  ]
+}
